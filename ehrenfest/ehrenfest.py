@@ -10,7 +10,7 @@ class Ehrenfest(object):
     """An Ehrenfest (mean-field) class
     """
 
-    def __init__(self, hamiltonian, n_modes=300, n_trajectories=100):
+    def __init__(self, hamiltonian, nmode=300, ntraj=100):
         """Initialize the Ehrenfest class.
 
         Parameters
@@ -18,39 +18,36 @@ class Ehrenfest(object):
         hamiltonian : Hamiltonian
             An instance of the pyrho Hamiltonian class.
 
-        n_modes : int
+        nmode : int
             The number of explicit classical modes
 
-        n_trajectories : int
+        ntraj : int
             The number of trajectories over which to average
 
         """
         utils.print_banner("PERFORMING EHRENFEST DYNAMICS")
 
         self.ham = hamiltonian
-        self.n_modes = n_modes
-        self.n_trajectories = n_trajectories
+        self.nmode = nmode
+        self.ntraj = ntraj
 
     def deriv(self, t, yt):
         rho, qps = self.unpack(yt)
 
         ham_t = self.ham.sys.copy()
         dqps = np.zeros_like(qps)
-        for n in range(self.ham.nbath):
-            cks = [mode.c for mode in self.modes[n]]
-            qks = [qp[0] for qp in qps[n,:,:]]
-            Fn = self.ham.sysbath[n]    # this is like |n><n|
-            ham_t += Fn*np.dot(cks, qks)
-            F_avg = np.trace(np.dot(Fn,rho))
 
-            # TODO (TCB): Speed this up
-            for k in range(self.n_modes):
-                q, p = qps[n,k,:]
-                omega = self.modes[n][k].omega
-                c = self.modes[n][k].c
-                dq = p
-                dp = -omega**2 * q - c*F_avg.real
-                dqps[n,k,:] = dq, dp
+        for n,modes_n in enumerate(self.modes):
+            q, p = qps[n,:,:].T
+            omegasq = self._omegasq[n]
+            c = self._c[n]
+            Fn = self.ham.sysbath[n]    # this is like |n><n|
+            ham_t += Fn*np.dot(c, q)
+            F_avg = np.trace(np.dot(Fn,rho)).real
+            dq = p
+            dp = -omegasq*q - c*F_avg
+            dqps[n,:,0] = dq 
+            dqps[n,:,1] = dp 
 
         drho = -1j/const.hbar * utils.commutator(ham_t,rho)
 
@@ -62,7 +59,7 @@ class Ehrenfest(object):
 
     def unpack(self, yt):
         rho = utils.from_liouville(yt[:self.ham.nsite**2])
-        qps = yt[self.ham.nsite**2:].reshape(self.ham.nbath,self.n_modes,2).real
+        qps = yt[self.ham.nsite**2:].reshape(self.ham.nbath,self.nmode,2).real
         return rho, qps
 
     def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True):
@@ -92,17 +89,22 @@ class Ehrenfest(object):
 
         """
         times = np.arange(t_init, t_final, dt)
-        modes = self.modes = self.ham.init_classical_modes(self.n_modes)
+        modes = self.modes = self.ham.init_classical_modes(self.nmode)
+        self._omegasq = np.zeros((self.ham.nbath,self.nmode))
+        self._c = np.zeros((self.ham.nbath,self.nmode))
+        for n,modes_n in enumerate(self.modes):
+            self._omegasq[n,:] = np.array([mode.omega**2 for mode in modes_n])
+            self._c[n:] = np.array([mode.c for mode in modes_n])
 
         def deriv_fn(t,y):
             return self.deriv(t,y)
 
         rhos_site_avg = []
-        for trajectory in range(self.n_trajectories):
+        for trajectory in range(self.ntraj):
             self.ham.sample_classical_modes(modes)
-            qps = np.zeros((self.ham.nbath, self.n_modes, 2))
+            qps = np.zeros((self.ham.nbath, self.nmode, 2))
             for n in range(self.ham.nbath):
-                for k in range(self.n_modes):
+                for k in range(self.nmode):
                     qps[n,k,:] = modes[n][k].Q, modes[n][k].P
 
             integrator = Integrator('ODE', dt, deriv_fn=deriv_fn)
@@ -124,10 +126,10 @@ class Ehrenfest(object):
             # Remember: rhos_site is a Python list, not a numpy array
             if trajectory == 0:
                 for rho_site in rhos_site:
-                    rhos_site_avg.append(rho_site/self.n_trajectories)
+                    rhos_site_avg.append(rho_site/self.ntraj)
             else:
                 for rho_site_avg, rho_site in zip(rhos_site_avg, rhos_site):
-                    rho_site_avg += rho_site/self.n_trajectories
+                    rho_site_avg += rho_site/self.ntraj
 
         rhos_eig_avg = []
         for rho_site_avg in rhos_site_avg:

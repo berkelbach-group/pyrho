@@ -77,12 +77,43 @@ class Hamiltonian(object):
         Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
         return utils.matrix_dot(Ut.conj().T,rho,Ut)
 
+    def init_classical_modes(self,nmode=300):
+        modes = []
+        for n in range(self.nbath):
+            # Initialize classical bath frequencies and couplings
+            lamda_n = self.sd[n].lamda
+            omega_c_n = self.sd[n].omega_c
+            modes.append([])
+            for k in range(nmode):
+                if self.sd[n].sd_type == 'ohmic-exp':
+                    omega_nk = omega_c_n*(-np.log((k+0.5)/nmode))
+                    rho_wnk =  nmode/(np.pi*lamda_n*omega_nk)
+                    #c_nk = omega_nk*np.sqrt(2*lamda_n/nmode)
+                elif self.sd[n].sd_type == 'ohmic-lorentz':
+                    omega_nk = omega_c_n*np.tan((np.pi/2.)*(k+0.5)/nmode)
+                    rho_wnk = nmode/(np.pi*lamda_n*omega_nk)
+                else:
+                    print "SpecDens type", self.sd[n].sd_type, "not yet implemented for classical baths"
+                    raise NotImplementedError
+                c_nk = np.sqrt(2/np.pi * omega_nk / rho_wnk)
+                modes[n].append(ClassicalHO(omega_nk, None, None, c_nk))
+        return modes
+
+    def sample_classical_modes(self, modes):
+        for n in range(self.nbath):
+            for mode in modes[n]:
+                mode.sample_boltzmann(const.kT)
+
 
 class SpecDens(object):
     """A spectral density class"""
 
     def __init__(self, spec_dens_list):
         """Initialize the spectral density class.
+
+        Notes
+        -----
+        The spectral density has units of energy.
 
         Parameters
         ----------
@@ -280,3 +311,17 @@ class SpecDens(object):
                           %(const.hbar*omega, self.J(omega), lamda))
         Jw_file.close()
         
+
+class ClassicalHO:
+    """A classical Harmonic Oscillator class"""
+
+    def __init__(self, omega, Q, P, coupling):
+        self.omega = omega
+        self.Q = Q
+        self.P = P
+        self.c = coupling
+
+    def sample_boltzmann(self, kT):
+        self.Q = np.random.normal(0.0, np.sqrt(kT)/self.omega)
+        self.P = np.random.normal(0.0, np.sqrt(kT))
+

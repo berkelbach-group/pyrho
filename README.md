@@ -53,3 +53,6 @@ To-do
   - [x] Ohmic-Lorentz (Debye)
   - [ ] Pade decomposition
   - [ ] Single oscillator
+- [x] Ehrenfest
+  - [ ] Optimization
+

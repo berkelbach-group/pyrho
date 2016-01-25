@@ -284,7 +284,7 @@ class HEOM:
                 drho_n = -1j/hbar * utils.commutator(self.ham.sys,rho_n)
                 njk_gammajk = np.sum(nmat*self.gamma)
                 for j in range(self.ham.nbath):
-                    Gj = self.ham.sysbath[j]    # this is like |j><j|
+                    Fj = self.ham.sysbath[j]    # this is like |j><j|
                     lamdaj = self.ham.sd[j].lamda
                     omega_cj = self.ham.sd[j].omega_c
                     for k in range(self.Kmax+1):
@@ -295,8 +295,8 @@ class HEOM:
 
                         rho_njkminus = self.rho_minus(rho,n,j,k)
                         drho_n -= ( (1j/hbar)*scale_minus
-                                   *(self.c[j,k]*np.dot(Gj,rho_njkminus)
-                                   -self.c[j,k].conjugate()*np.dot(rho_njkminus,Gj)) )
+                                   *(self.c[j,k]*np.dot(Fj,rho_njkminus)
+                                   -self.c[j,k].conjugate()*np.dot(rho_njkminus,Fj)) )
                     # Note: The real part is taken because the Ishizaki-Tanimura
                     # truncation yields a sum over excluded Matsubara frequencies,
                     # which are purely real; the difference between the *real*
@@ -305,7 +305,7 @@ class HEOM:
                     if self.truncation_type == 'Ishizaki-Fleming':
                         drho_n -= ( (2*lamdaj*const.kT/(hbar**2*omega_cj) 
                                      - cjk_over_gammajk[j]/hbar).real
-                                   *utils.commutator(Gj, utils.commutator(Gj, rho_n)) )
+                                   *utils.commutator(Fj, utils.commutator(Fj, rho_n)) )
                     if L < self.Lmax:
                         # If L == self.Lmax, then rho_nkplus = 0
                         rho_njkplus_sum = np.zeros_like(rho_n)
@@ -315,7 +315,7 @@ class HEOM:
                             else:
                                 scale_plus = 1. 
                             rho_njkplus_sum += scale_plus*self.rho_plus(rho,n,j,k)
-                        drho_n -= 1j*utils.commutator(Gj, rho_njkplus_sum)
+                        drho_n -= 1j*utils.commutator(Fj, rho_njkplus_sum)
                 drho_n -= njk_gammajk*rho_n
                 drho.append(drho_n)
 

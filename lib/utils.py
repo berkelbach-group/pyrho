@@ -36,13 +36,14 @@ def to_liouville(rho):
     ns = rho.shape[0]
     if len(rho.shape) == 2:
         # A matrix to a vector
-        rho_vec = np.zeros(ns*ns, dtype=np.complex_)
-        idx = 0
-        for i in range(ns):
-            for j in range(ns):
-                rho_vec[idx] = rho[i,j]
-                idx += 1
-        return rho_vec
+        #rho_vec = np.zeros(ns*ns, dtype=np.complex_)
+        #idx = 0
+        #for i in range(ns):
+        #    for j in range(ns):
+        #        rho_vec[idx] = rho[i,j]
+        #        idx += 1
+        #return rho_vec
+        return rho.reshape(-1).astype(np.complex_)
     else:
         # A tensor to a matrix 
         rho_mat = np.zeros((ns*ns,ns*ns), dtype=np.complex_) 
@@ -59,13 +60,14 @@ def to_liouville(rho):
 
 def from_liouville(rho_vec):
     ns = int(np.sqrt(len(rho_vec)))
-    rho = np.zeros((ns,ns), dtype=np.complex_)
-    idx = 0
-    for i in range(ns):
-        for j in range(ns):
-            rho[i,j] = rho_vec[idx]
-            idx += 1
-    return rho
+    #rho = np.zeros((ns,ns), dtype=np.complex_)
+    #idx = 0
+    #for i in range(ns):
+    #    for j in range(ns):
+    #        rho[i,j] = rho_vec[idx]
+    #        idx += 1
+    #return rho
+    return rho_vec.reshape(ns,ns).astype(np.complex_)
 
 def commutator(A,B):
     return np.dot(A,B) - np.dot(B,A)
