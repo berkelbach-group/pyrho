@@ -55,4 +55,5 @@ To-do
   - [ ] Single oscillator
 - [x] Ehrenfest
   - [ ] Optimization
+  - [ ] Persistent bath variables in propagate()
 
