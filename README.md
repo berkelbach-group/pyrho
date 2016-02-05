@@ -44,7 +44,7 @@ Contents
 To-do
 -----
 - [ ] Spectroscopy
-  - [ ] Linear 
+  - [x] Linear 
   - [ ] Nonlinear
 - [ ] NIBA and related polaron-based QMEs
 - [ ] Exact Harmonic mode(s) in the system Hamiltonian
