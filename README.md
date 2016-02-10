@@ -14,13 +14,17 @@ Contents
 --------
 * README.md
 
+* ehrenfest/
+
+    Module for classically-sampled, trajectory-based Ehrenfest dynamics
+
 * ham/
 
     Module for system-bath Hamiltonians
 
 * heom/
 
-    Module for Hierarchical Equations of Motions
+    Module for Hierarchical Equations of Motion
 
 * integrate/
     
@@ -29,17 +33,21 @@ Contents
 * lib/
     
     Module for miscellaneous tools, including physical constants
-        and utility functions.
+        and utility functions
 
 * redfield/
     
     Module for Redfield and related second-order dynamical perturbation
         theories in the system-bath coupling strength
 
+* spec/
+    Module for spectroscopies, based on any underlying Dynamics class
+        with a Dynamics.propagate() method
+
 * examples/
     
     Example driver scripts for setting up a Hamiltonian and calculating
-        reduced system dynamics.
+        reduced system dynamics
 
 To-do
 -----
