@@ -33,7 +33,6 @@ def tensor_diff(tensor1, tensor2):
     return cost
 
 def to_liouville(rho):
-    ns = rho.shape[0]
     if len(rho.shape) == 2:
         # A matrix to a vector
         #rho_vec = np.zeros(ns*ns, dtype=np.complex_)
@@ -43,9 +42,11 @@ def to_liouville(rho):
         #        rho_vec[idx] = rho[i,j]
         #        idx += 1
         #return rho_vec
-        return rho.reshape(-1).astype(np.complex_)
+        #return rho.reshape(-1).astype(np.complex_)
+        return rho.flatten().astype(np.complex_)
     else:
         # A tensor to a matrix 
+        ns = rho.shape[0]
         rho_mat = np.zeros((ns*ns,ns*ns), dtype=np.complex_) 
         I = 0
         for i in range(ns):
@@ -58,8 +59,9 @@ def to_liouville(rho):
                 I += 1
         return rho_mat
 
-def from_liouville(rho_vec):
-    ns = int(np.sqrt(len(rho_vec)))
+def from_liouville(rho_vec, ns=None):
+    if ns is None:
+        ns = int(np.sqrt(len(rho_vec)))
     #rho = np.zeros((ns,ns), dtype=np.complex_)
     #idx = 0
     #for i in range(ns):

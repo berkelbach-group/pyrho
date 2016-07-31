@@ -37,7 +37,7 @@ def main():
 
     my_ham = ham.Hamiltonian(ham_sys, ham_sysbath, spec_densities, kT)
 
-    my_redfield = redfield.Redfield(my_ham, method='Redfield')
+    my_redfield = redfield.Redfield(my_ham, method='Redfield', is_secular=True)
     dt = 0.05
     t_final = 50.0
 
@@ -45,7 +45,7 @@ def main():
     omegas, intensities = my_spec.absorption(-4.+eps, 4.+eps, 0.02, 
                                              rho_g, 0., t_final, dt)
 
-    with open('abs2_omegac-%0.1f_beta-%0.1f.dat'%(omega_c,beta), 'w') as f:
+    with open('abs_omegac-%0.1f_beta-%0.1f.dat'%(omega_c,beta), 'w') as f:
         for (omega, intensity) in zip(omegas, intensities):
             f.write('%0.8f %0.8f\n'%(omega-eps, intensity))
 

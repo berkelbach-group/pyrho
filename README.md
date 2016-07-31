@@ -41,6 +41,7 @@ Contents
         theories in the system-bath coupling strength
 
 * spec/
+
     Module for spectroscopies, based on any underlying Dynamics class
         with a Dynamics.propagate() method
 
