@@ -32,35 +32,32 @@ class Ehrenfest(object):
         self.ntraj = ntraj
 
     def deriv(self, t, yt):
-        rho, qps = self.unpack(yt)
+        rho, q, p = self.unpack(yt)
 
-        ham_t = self.ham.sys.copy()
-        dqps = np.zeros_like(qps)
+        cq = np.einsum('nk,nk->n',self._c,q)
+        ham_t = self.ham.sys + np.einsum('nab,n->ab',self._hamsb,cq)
+        F_avg = np.einsum('nab,ba->n',self._hamsb,rho).real
 
-        for n,modes_n in enumerate(self.modes):
-            q, p = qps[n,:,:].T
-            omegasq = self._omegasq[n]
-            c = self._c[n]
-            Fn = self.ham.sysbath[n]    # this is like |n><n|
-            ham_t += Fn*np.dot(c, q)
-            F_avg = np.trace(np.dot(Fn,rho)).real
-            dq = p
-            dp = -omegasq*q - c*F_avg
-            dqps[n,:,0] = dq 
-            dqps[n,:,1] = dp 
+        dq = p.copy()
+        dp = - self._omegasq*q \
+             - np.einsum('nk,n->nk',self._c,F_avg) 
 
         drho = -1j/const.hbar * utils.commutator(ham_t,rho)
 
-        return self.pack(drho, dqps)
+        return self.pack(drho, dq, dp)
 
-    def pack(self, rho, qps):
-        yt = np.concatenate((utils.to_liouville(rho), qps.flatten())) 
+    def pack(self, rho, q, p):
+        yt = np.concatenate((utils.to_liouville(rho), 
+                             q.flatten(), p.flatten())) 
         return yt
 
     def unpack(self, yt):
-        rho = utils.from_liouville(yt[:self.ham.nsite**2])
-        qps = yt[self.ham.nsite**2:].reshape(self.ham.nbath,self.nmode,2).real
-        return rho, qps
+        rho = utils.from_liouville(yt[:self.ham.nsite**2], self.ham.nsite)
+        qp = yt[self.ham.nsite**2:].real
+        q, p = qp[:self.ham.nbath*self.nmode], qp[self.ham.nbath*self.nmode:]
+        q = q.reshape(self.ham.nbath,self.nmode)
+        p = p.reshape(self.ham.nbath,self.nmode)
+        return rho, q, p
 
     def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True):
         """Propagate the RDM according to Ehrenfest dynamics.
@@ -90,6 +87,7 @@ class Ehrenfest(object):
         """
         times = np.arange(t_init, t_final, dt)
         modes = self.modes = self.ham.init_classical_modes(self.nmode)
+        self._hamsb = np.array(self.ham.sysbath)
         self._omegasq = np.zeros((self.ham.nbath,self.nmode))
         self._c = np.zeros((self.ham.nbath,self.nmode))
         for n,modes_n in enumerate(self.modes):
@@ -102,19 +100,20 @@ class Ehrenfest(object):
         rhos_site_avg = []
         for trajectory in range(self.ntraj):
             self.ham.sample_classical_modes(modes)
-            qps = np.zeros((self.ham.nbath, self.nmode, 2))
+            q = np.zeros((self.ham.nbath, self.nmode))
+            p = np.zeros((self.ham.nbath, self.nmode))
             for n in range(self.ham.nbath):
                 for k in range(self.nmode):
-                    qps[n,k,:] = modes[n][k].Q, modes[n][k].P
+                    q[n,k] = modes[n][k].Q
+                    p[n,k] = modes[n][k].P
 
             integrator = Integrator('ODE', dt, deriv_fn=deriv_fn)
-            integrator.set_initial_value(self.pack(rho_0,qps), t_init)
+            integrator.set_initial_value(self.pack(rho_0,q,p), t_init)
 
             rhos_site = []
             while integrator.t < t_final+1e-8:
                 # Retrieve data from integrator
-                rho_site, qkpk = self.unpack(integrator.y)
-                #print integrator.t, qkpk[0,0,0]
+                rho_site, q, p = self.unpack(integrator.y)
 
                 # Collect results
                 rhos_site.append(rho_site)
