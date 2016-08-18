@@ -6,7 +6,57 @@ import numpy as np
 from scipy import integrate
 from pyrho.lib import const, utils 
 
-class Hamiltonian(object):
+class HamiltonianSystem(object):
+    """A system-only Hamiltonian class"""
+
+    def __init__(self, ham_sys, hbar=1, is_verbose=True):
+        """Initialize the Hamiltonian class.
+
+        Parameters
+        ----------
+        ham_sys : np.array
+            The system Hamiltonian in the site basis.
+        hbar : float
+            Reduced Planck constant, hbar, in chosen units.
+
+        """
+        const.hbar = hbar
+
+        self.sys = ham_sys
+        self.nsite = ham_sys.shape[0]
+
+        self.evals, self.Umat = utils.diagonalize(ham_sys)
+        self.omega_diff = np.zeros((self.nsite,self.nsite))
+        for i in range(self.nsite):
+            for j in range(self.nsite):
+                self.omega_diff[i,j] = (self.evals[i] - self.evals[j])/const.hbar
+
+        if is_verbose:
+            print "\n--- System eigenvalues"
+            print self.evals
+
+    def site2eig(self, rho):
+        """Transform rho from the site basis to the eigen basis."""
+        return utils.matrix_dot(self.Umat.conj().T,rho,self.Umat)
+
+    def eig2site(self, rho):
+        """Transform rho from the eigen basis to the site basis."""
+        return utils.matrix_dot(self.Umat,rho,self.Umat.conj().T)
+
+    def to_interaction(self, rho, t):
+        """Transform rho (in the eigen basis) into the interaction picture."""
+        #Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
+        #return utils.matrix_dot(Ut,rho,Ut.conj().T)
+        return np.exp(-1j*self.omega_diff*t)*rho 
+
+    def from_interaction(self, rho, t):
+        """Transform rho (in the eigen basis) out of the interaction picture."""
+        #Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
+        #return utils.matrix_dot(Ut.conj().T,rho,Ut)
+        return np.exp(1j*self.omega_diff*t)*rho 
+
+
+class Hamiltonian(HamiltonianSystem):
     """A system-bath Hamiltonian class"""
 
     def __init__(self, ham_sys, ham_sysbath, spec_densities, kT, hbar=1):
@@ -58,24 +108,6 @@ class Hamiltonian(object):
             self.sd.append(SpecDens(spec_dens))
             self.sd[n].write_Jw('Jw%d.dat'%(n))
             n += 1
-
-    def site2eig(self, rho):
-        """Transform rho from the site basis to the eigen basis."""
-        return utils.matrix_dot(self.Umat.conj().T,rho,self.Umat)
-
-    def eig2site(self, rho):
-        """Transform rho from the eigen basis to the site basis."""
-        return utils.matrix_dot(self.Umat,rho,self.Umat.conj().T)
-
-    def to_interaction(self, rho, t):
-        """Transform rho (in the eigen basis) into the interaction picture."""
-        Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
-        return utils.matrix_dot(Ut,rho,Ut.conj().T)
-
-    def from_interaction(self, rho, t):
-        """Transform rho (in the eigen basis) out of the interaction picture."""
-        Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
-        return utils.matrix_dot(Ut.conj().T,rho,Ut)
 
     def init_classical_modes(self,nmode=300):
         modes = []
@@ -214,20 +246,20 @@ class SpecDens(object):
         else:
             return -Jw
 
-    def oscillators(self, omega):
-        # Should never actually call this function!
-        # TCB 10/5/15 - Why not?
-        gamma = 1e-3
-        w = abs(omega)
-        Jw = 0.0
-        for lamda, omega in zip(self.lamdas, self.omegas):
-            Jw += ( lamda*(gamma/2.)*w
-                    *( 1.0/( (w-omega_osc)**2 + (gamma/2.)**2 )
-                      +1.0/( (w+omega_osc)**2 + (gamma/2.)**2 ) ) )
-        if omega > 0:
-            return Jw
-        else:
-            return -Jw
+    #def oscillators(self, omega):
+    #    # Should never actually call this function!
+    #    # TCB 10/5/15 - Why not?
+    #    gamma = 1e-3
+    #    w = abs(omega)
+    #    Jw = 0.0
+    #    for lamda, omega in zip(self.lamdas, self.omegas):
+    #        Jw += ( lamda*(gamma/2.)*w
+    #                *( 1.0/( (w-omega_osc)**2 + (gamma/2.)**2 )
+    #                  +1.0/( (w+omega_osc)**2 + (gamma/2.)**2 ) ) )
+    #    if omega > 0:
+    #        return Jw
+    #    else:
+    #        return -Jw
 
     def bath_corr(self, t):
         """Evaluate the real-time bath autocorrelation function at time t."""
