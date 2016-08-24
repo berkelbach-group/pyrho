@@ -14,7 +14,7 @@ class Redfield(object):
 
     """
 
-    def __init__(self, hamiltonian, method='Redfield', is_secular=False):
+    def __init__(self, hamiltonian, method='Redfield', is_secular=False, is_verbose=True):
         """Initialize the Redfield class.
 
         Parameters
@@ -28,14 +28,17 @@ class Redfield(object):
 
         """
         assert(method in ['Redfield', 'TCL2', 'TC2'])
-        utils.print_banner("PERFORMING RDM DYNAMICS WITH METHOD = %s"%(method))
+        if is_verbose:
+            utils.print_banner("PERFORMING RDM DYNAMICS WITH METHOD = %s"%(method))
 
         self.ham = hamiltonian
         self.method = method
         self.is_secular = is_secular
+        self.is_verbose = is_verbose
 
         if self.is_secular:
-            print "\n--- Using the secular approximation"
+            if is_verbose:
+                print "\n--- Using the secular approximation"
 
         ident = np.identity(self.ham.nsite)
         self.Omega = -1j*np.einsum('ij,ik,jl->ijkl', 
@@ -138,18 +141,19 @@ class Redfield(object):
                                 self.redfield_tensor[i,j,k,l] = 0.0
 
         if ns == 2 and self.method == "Redfield":
-            print "\n--- The Redfield tensor"
-            print self.redfield_tensor
+            if self.is_verbose:
+                print "\n--- The Redfield tensor"
+                print self.redfield_tensor
 
-            print "\n--- Checking detailed balance"
-            for i in range(ns):
-                for j in range(i+1,ns):
-                    print "R[%d,%d,%d,%d]/R[%d,%d,%d,%d] = %0.10lf =? %0.10lf"%(
-                            i,i,j,j,j,j,i,i,
-                            np.real( self.redfield_tensor[i,i,j,j]
-                                    / self.redfield_tensor[j,j,i,i] ),
-                            np.exp(-(self.ham.evals[i]-self.ham.evals[j])
-                                   / const.kT) )
+                print "\n--- Checking detailed balance"
+                for i in range(ns):
+                    for j in range(i+1,ns):
+                        print "R[%d,%d,%d,%d]/R[%d,%d,%d,%d] = %0.10lf =? %0.10lf"%(
+                                i,i,j,j,j,j,i,i,
+                                np.real( self.redfield_tensor[i,i,j,j]
+                                        / self.redfield_tensor[j,j,i,i] ),
+                                np.exp(-(self.ham.evals[i]-self.ham.evals[j])
+                                       / const.kT) )
 
         self.redfield_tensor = utils.to_liouville(self.redfield_tensor)
 
@@ -173,7 +177,8 @@ class Redfield(object):
         Integrator grid (e.g. RK4).
 
         """
-        print "\n--- Precomputing the Redfield tensor"
+        if self.is_verbose:
+            print "\n--- Precomputing the Redfield tensor"
         n_timesteps = int( (t_final-t_init)/dt + 1 )
         self.redfield_tensor_n = []
         redfield_tensor_integral_n = []
@@ -191,12 +196,14 @@ class Redfield(object):
             cost.append( utils.tensor_diff( self.redfield_tensor, 
                                             self.redfield_tensor_n[n-1] ) )
             if n > 0 and cost[n] < self.markov_tol*np.std(cost):
-                print "\n--- Tensor has stopped changing at t =", t
+                if self.is_verbose:
+                    print "\n--- Tensor has stopped changing at t =", t
                 self.n_markov = n
                 break
 
             if n > 0 and t >= self.markov_time:
-                print "\n--- Tensor calculation stopped at t =", t
+                if self.is_verbose:
+                    print "\n--- Tensor calculation stopped at t =", t
                 self.n_markov = n
                 break
 
@@ -204,7 +211,8 @@ class Redfield(object):
         if self.method == 'TCL2':
             self.redfield_tensor_n = redfield_tensor_integral_n
 
-        print "\n--- Done precomputing the Redfield tensor"
+        if self.is_verbose:
+            print "\n--- Done precomputing the Redfield tensor"
 
         cost_file = open('cost_%s.dat'%(self.method),'w')
         rate_file = open('rate_%s.dat'%(self.method),'w')
@@ -222,7 +230,8 @@ class Redfield(object):
         rate_file.close()
 
     def precompute_redfield_tensor_finegrid(self, t_init, t_final, dt, integrator):
-        print "\n--- Precomputing the Redfield tensor on a fine RK4 grid"
+        if self.is_verbose:
+            print "\n--- Precomputing the Redfield tensor on a fine RK4 grid"
         int_order = integrator.order
         c = integrator.c
         n_timesteps = int( (t_final-t_init)/dt + 1 )
@@ -239,13 +248,15 @@ class Redfield(object):
             cost.append( utils.tensor_diff( self.redfield_tensor, 
                                             self.redfield_tensor_ni[n-1][i] ) )
             if n > 0 and cost[n] < self.markov_tol*np.std(cost):
-                print "\n--- Tensor has stopped changing at t =", t
+                if self.is_verbose:
+                    print "\n--- Tensor has stopped changing at t =", t
                 self.n_markov = n
                 rate_file.close()
                 break
 
             if n > 0 and t >= self.markov_time:
-                print "\n--- Tensor calculation stopped at t =", t
+                if self.is_verbose:
+                    print "\n--- Tensor calculation stopped at t =", t
                 self.n_markov = n
                 rate_file.close()
                 break
@@ -258,7 +269,8 @@ class Redfield(object):
 
         self.n_markov = n
         rate_file.close()
-        print "\n--- Done precomputing the Redfield tensor"
+        if self.is_verbose:
+            print "\n--- Done precomputing the Redfield tensor"
 
     def propagate(self, rho_0, t_init, t_final, dt, 
                   markov_tol = 1e-3, markov_time = np.inf,
@@ -311,7 +323,7 @@ class Redfield(object):
 
         rhos_site = []
         rhos_eig = []
-        while integrator.t < t_final+1e-8:
+        for time in times:
             # Retrieve data from integrator
             rho_eig = utils.from_liouville(integrator.y)
 

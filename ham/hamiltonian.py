@@ -21,11 +21,12 @@ class HamiltonianSystem(object):
 
         """
         const.hbar = hbar
-
+        self.init_system(ham_sys, is_verbose)
+        
+    def init_system(self, ham_sys, is_verbose=True):
         self.sys = ham_sys
         self.nsite = ham_sys.shape[0]
-
-        self.evals, self.Umat = utils.diagonalize(ham_sys)
+        self.evals, self.Umat = utils.diagonalize(self.sys)
         self.omega_diff = np.zeros((self.nsite,self.nsite))
         for i in range(self.nsite):
             for j in range(self.nsite):
@@ -59,7 +60,7 @@ class HamiltonianSystem(object):
 class Hamiltonian(HamiltonianSystem):
     """A system-bath Hamiltonian class"""
 
-    def __init__(self, ham_sys, ham_sysbath, spec_densities, kT, hbar=1):
+    def __init__(self, ham_sys, ham_sysbath, spec_densities, kT, hbar=1, is_verbose=True):
         """Initialize the Hamiltonian class.
 
         Parameters
@@ -80,25 +81,15 @@ class Hamiltonian(HamiltonianSystem):
         const.kT = kT
         const.hbar = hbar
 
-        self.sys = ham_sys
+        if is_verbose:
+            utils.print_banner("INITIALIZING SYSTEM+BATH HAMILTONIAN")
+
+        self.init_system(ham_sys, is_verbose)
+
         self.sysbath = ham_sysbath
         self.spec_densities = spec_densities
-
         assert len(ham_sysbath) == len(spec_densities)
-
-        utils.print_banner("INITIALIZING SYSTEM+BATH HAMILTONIAN")
-
-        self.nsite = ham_sys.shape[0]
         self.nbath = len(ham_sysbath)
-
-        self.evals, self.Umat = utils.diagonalize(ham_sys)
-        self.omega_diff = np.zeros((self.nsite,self.nsite))
-        for i in range(self.nsite):
-            for j in range(self.nsite):
-                self.omega_diff[i,j] = (self.evals[i] - self.evals[j])/const.hbar
-
-        print "\n--- System eigenvalues"
-        print self.evals
 
         # 'sd' is a list of 'SpecDens' instances that have member 
         # variables lamda, omega_c and member function J(omega)
@@ -109,7 +100,7 @@ class Hamiltonian(HamiltonianSystem):
             self.sd[n].write_Jw('Jw%d.dat'%(n))
             n += 1
 
-    def init_classical_modes(self,nmode=300):
+    def xxx_init_classical_modes(self,nmode=300):
         modes = []
         for n in range(self.nbath):
             # Initialize classical bath frequencies and couplings
@@ -128,6 +119,29 @@ class Hamiltonian(HamiltonianSystem):
                     print "SpecDens type", self.sd[n].sd_type, "not yet implemented for classical baths"
                     raise NotImplementedError
                 c_nk = np.sqrt(2/np.pi * omega_nk / rho_wnk)
+                modes[n].append(ClassicalHO(omega_nk, None, None, c_nk))
+        return modes
+
+    def init_classical_modes(self,nmode=300):
+        modes = []
+        for n in range(self.nbath):
+            # Initialize classical bath frequencies and couplings
+            #lamda_n = self.sd[n].lamda
+            omega_c_n = self.sd[n].omega_c
+            modes.append([])
+            for k in range(nmode):
+                if self.sd[n].sd_type == 'ohmic-exp':
+                    omega_nk = omega_c_n*(-np.log((nmode-k-0.5)/nmode))
+                    #rho_wnk = nmode/(np.pi*lamda_n*omega_nk)*self.sd[n].J(omega_nk)
+                    rho_wnk = nmode/omega_c_n * np.exp(-omega_nk/omega_c_n) / omega_c_n
+                elif self.sd[n].sd_type == 'ohmic-lorentz':
+                    omega_nk = omega_c_n*np.tan((np.pi/2.)*(k+0.5)/nmode)
+                    #rho_wnk = nmode/(np.pi*lamda_n*omega_nk)*self.sd[n].J(omega_nk)
+                    rho_wnk = nmode/(np.pi) *2 / (1 + (omega_nk/omega_c_n)**2) / omega_c_n
+                else:
+                    print "Spectral density type", self.sd[n].sd_type, "not supported."
+                    raise NotImplementedError
+                c_nk = np.sqrt(2/np.pi * omega_nk * self.sd[n].J(omega_nk) / rho_wnk)
                 modes[n].append(ClassicalHO(omega_nk, None, None, c_nk))
         return modes
 

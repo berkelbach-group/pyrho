@@ -31,7 +31,7 @@ class FrozenModes(object):
         self.nmode = nmode
         self.ntraj = ntraj
 
-    def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True):
+    def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True, dynamics=None):
         """Propagate the RDM according to Frozen Modes dynamics.
 
         Parameters
@@ -80,10 +80,15 @@ class FrozenModes(object):
             frozen_bias = np.einsum('nab,n->ab',self._hamsb,cq)
             ham_biased = self.ham.sys + frozen_bias
 
-            ham_traj = ham.HamiltonianSystem(ham_biased, const.hbar, is_verbose=False)
-            my_unitary = unitary.Unitary(ham_traj, is_verbose=False)
-            xtimes, rhos_site, rhos_eig = my_unitary.propagate(rho_0, t_init, t_final, dt, 
-                                                               is_verbose=False)
+            if dynamics is None:
+                ham_traj = ham.HamiltonianSystem(ham_biased, const.hbar, is_verbose=False)
+                dynamics = unitary.Unitary(ham_traj, is_verbose=False)
+            else:
+                dynamics.ham.init_system(ham_biased, is_verbose=False)
+
+            dynamics.__init__(dynamics.ham, is_verbose=False)
+            xtimes, rhos_site, rhos_eig = dynamics.propagate(rho_0, t_init, t_final, dt, 
+                                                             is_verbose=False)
 
             # Remember: rhos_site is a Python list, not a numpy array
             rhos_site_avg += np.array(rhos_site)/self.ntraj

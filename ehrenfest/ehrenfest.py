@@ -100,7 +100,6 @@ class Ehrenfest(object):
         rhos_site_avg = np.zeros((len(times),self.ham.nsite,self.ham.nsite), dtype=np.complex) 
         rhos_eig_avg = np.zeros((len(times),self.ham.nsite,self.ham.nsite), dtype=np.complex) 
         for trajectory in range(self.ntraj):
-            print "Trajectory =", trajectory
             self.ham.sample_classical_modes(modes)
             q = np.zeros((self.ham.nbath, self.nmode))
             p = np.zeros((self.ham.nbath, self.nmode))
@@ -114,7 +113,7 @@ class Ehrenfest(object):
 
             rhos_site = []
             rhos_eig = []
-            while integrator.t < t_final:
+            for time in times:
                 # Retrieve data from integrator
                 rho_site, q, p = self.unpack(integrator.y)
 
@@ -134,4 +133,3 @@ class Ehrenfest(object):
         
         # Return as a list of 2D ndarrays
         return times, [x for x in rhos_site_avg], [x for x in rhos_eig_avg]
-
