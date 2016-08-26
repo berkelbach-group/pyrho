@@ -25,7 +25,7 @@ class HEOM:
     """
 
     def __init__(self, hamiltonian, L=1, K=0,
-                 truncation_type='Ishizaki-Fleming', is_scaled=True):
+                 truncation_type='Ishizaki-Tanimura', is_scaled=True):
         """Initialize the HEOM class.
 
         Parameters
@@ -42,7 +42,7 @@ class HEOM:
             Flag to use scaled ADMs, which are useful for filtering.
 
         """
-        assert(truncation_type in ['None','Ishizaki-Fleming','TL'])
+        assert(truncation_type in ['None','Ishizaki-Tanimura','TL'])
         utils.print_banner("PERFORMING RDM DYNAMICS WITH "
                            "THE HIERARCHICAL EQUATIONS OF MOTION")
  
@@ -75,7 +75,7 @@ class HEOM:
 
         """
 
-        print "--- Initilizing Matsubara expansion ...",
+        print "--- Initializing Matsubara expansion ...",
 
         beta = 1./const.kT
         hbar = const.hbar
@@ -115,9 +115,7 @@ class HEOM:
         for time in times: 
             corr_fn_file.write('%0.6f '%(time))
             for j in range(self.ham.nbath):
-                ct_j = 0+0j
-                for k in range(self.Kmax+1):
-                    ct_j += self.c[j,k]*np.exp(-self.gamma[j,k]*time)
+                ct_j = np.dot(self.c[j,:], np.exp(-self.gamma[j,:]*time))
                 corr_fn_file.write('%0.6f %0.6f '%(ct_j.real, ct_j.imag))
             corr_fn_file.write('\n')
         corr_fn_file.close()
@@ -146,7 +144,7 @@ class HEOM:
 
         """
 
-        print "--- Initilizing auxiliary density matrix hierarchy ...",
+        print "--- Initializing auxiliary density matrix hierarchy ...",
 
         self.nmat_hash = {} 
         self.nmats = []
@@ -302,7 +300,7 @@ class HEOM:
                     # which are purely real; the difference between the *real*
                     # finite K expansion and 2 lamda kT / omega_c gives the
                     # neglected contribution (in Markovian "TNL" approximation).
-                    if self.truncation_type == 'Ishizaki-Fleming':
+                    if self.truncation_type == 'Ishizaki-Tanimura':
                         drho_n -= ( (2*lamdaj*const.kT/(hbar**2*omega_cj) 
                                      - cjk_over_gammajk[j]/hbar).real
                                    *utils.commutator(Fj, utils.commutator(Fj, rho_n)) )

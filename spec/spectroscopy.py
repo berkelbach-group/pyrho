@@ -95,7 +95,7 @@ class Spectroscopy(object):
         print "--- Calculating third-order response function ...",
         for ph in [0,1]:
             for mu_op in mu_ops[ph]:
-                rho_0 = self._act(mu_op[0],rho_g_bath)
+                rho_0 = self.act(mu_op[0],rho_g_bath)
                 t1s, rhos_t1, x = self.dynamics.propagate(
                                     rho_0, 0.0, t_final, dt,
                                     input_has_bath=True, output_has_bath=True,
@@ -103,7 +103,7 @@ class Spectroscopy(object):
 
                 for t1 in range(len(times)):
                     rho_t1 = rhos_t1[t1]
-                    rho_t1_0 = self._act(mu_op[1],rho_t1)
+                    rho_t1_0 = self.act(mu_op[1],rho_t1)
                     t2s, rhos_t2, x = self.dynamics.propagate(
                                         rho_t1_0, t2_min, t2_max, dt,
                                         input_has_bath=True, output_has_bath=True,
@@ -111,7 +111,7 @@ class Spectroscopy(object):
 
                     for t2 in range(len(time2s)):
                         rho_t2 = rhos_t2[t2*dt2_over_dt]
-                        rho_t2_0 = self._act(mu_op[2],rho_t2)
+                        rho_t2_0 = self.act(mu_op[2],rho_t2)
                         t3s, rhos_t3, x = self.dynamics.propagate(
                                             rho_t2_0, 0.0, t_final, dt,
                                             input_has_bath=True, output_has_bath=False,
@@ -149,12 +149,12 @@ class Spectroscopy(object):
 
         return energy1s, energy3s, time2s, spectra
 
-    def _act(self, opside, rho):
+    def act(self, opside, rho):
         op, side = opside
         if side == 'L':
-            return self.dynamics._act_from_left(op,rho)
+            return self.dynamics.act_from_left(op,rho)
         else:
-            return self.dynamics._act_from_right(op,rho)
+            return self.dynamics.act_from_right(op,rho)
 
 
 def switch_to_zero(x,x0,x1):
