@@ -35,9 +35,11 @@ class Redfield(object):
         self.method = method
         self.is_secular = is_secular
         self.is_verbose = is_verbose
+        self.setup()
 
+    def setup(self):
         if self.is_secular:
-            if is_verbose:
+            if self.is_verbose:
                 print "\n--- Using the secular approximation"
 
         ident = np.identity(self.ham.nsite)

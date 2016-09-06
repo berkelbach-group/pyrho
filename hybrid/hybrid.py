@@ -22,13 +22,17 @@ class Hybrid(object):
         utils.print_banner("PERFORMING RDM DYNAMICS WITH HYBRID METHOD")
  
         self.ham = hamiltonian
+        self.dynamics_slow = dynamics_slow
+        self.dynamics_fast = dynamics_fast
+        self.omega_split = omega_split
+        self.setup()
 
-        if omega_split is None:
+    def setup(self):
+        if self.omega_split is None:
             # Determine splitting frequency
             self.omega_split = []
             if self.ham.nsite == 2:
-                omega_R = 2*np.sqrt( (self.ham.sys[0,0]-self.ham.sys[1,1])**2/4.0
-                                + self.ham.sys[0,1]**2 )/const.hbar
+                omega_R = rabi_two_level(self.ham.sys)
             else:
                 print "Automated splitting frequency for Nsys > 2 not implemented!"
                 raise SystemExit
@@ -40,15 +44,11 @@ class Hybrid(object):
                                 n, const.hbar*self.omega_split[n] )
 
         else:
-            assert( len(omega_split) == self.ham.nbath )
-            self.omega_split = omega_split
+            assert( len(self.omega_split) == self.ham.nbath )
 
         for n in range(self.ham.nbath):
             Jslow, Jfast = partition_specdens(self.ham.sd[n].J, self.omega_split[n])
-            dynamics_slow.ham.sd[n].J, dynamics_fast.ham.sd[n].J = Jslow, Jfast
-
-        self.dynamics_slow = dynamics_slow
-        self.dynamics_fast = dynamics_fast
+            self.dynamics_slow.ham.sd[n].J, self.dynamics_fast.ham.sd[n].J = Jslow, Jfast
 
     def propagate(self, rho_0, t_init, t_final, dt):
         return self.dynamics_slow.propagate(rho_0, t_init, t_final, dt, 
@@ -66,8 +66,8 @@ def switching(omega, omega_split):
 
 def partition_specdens(J, omega_split):
     def Jfast(omega):
-        pure_dephasing = J(omega)*(abs(omega) < 1e-4)
-        #pure_dephasing = 0.
+        #pure_dephasing = J(omega)*(abs(omega) < 1e-10)
+        pure_dephasing = 0.
         return (1-switching(omega,omega_split))*J(omega) + pure_dephasing
     def Jslow(omega):
         return switching(omega,omega_split)*J(omega)

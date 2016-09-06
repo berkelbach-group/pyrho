@@ -6,7 +6,8 @@ import numpy as np
 from pyrho import ham, unitary
 from pyrho.lib import const, utils
 
-class FrozenModes(object):
+from pyrho.unitary import Unitary
+class FrozenModes(Unitary):
     """A FrozenModes class
     """
 
@@ -80,23 +81,23 @@ class FrozenModes(object):
             frozen_bias = np.einsum('nab,n->ab',self._hamsb,cq)
             ham_biased = self.ham.sys + frozen_bias
 
+            #dynamics_is_verbose = True
+            dynamics_is_verbose = False
             if dynamics is None:
-                ham_traj = ham.HamiltonianSystem(ham_biased, const.hbar, is_verbose=False)
-                dynamics = unitary.Unitary(ham_traj, is_verbose=False)
+                ham_traj = ham.HamiltonianSystem(ham_biased, const.hbar, is_verbose=dynamics_is_verbose)
+                dynamics = unitary.Unitary(ham_traj, is_verbose=dynamics_is_verbose)
             else:
-                dynamics.ham.init_system(ham_biased, is_verbose=False)
-
-            dynamics.__init__(dynamics.ham, is_verbose=False)
+                dynamics.ham.init_system(ham_biased, is_verbose=dynamics_is_verbose)
+            dynamics.is_verbose = dynamics_is_verbose
+            dynamics.setup()
             xtimes, rhos_site, rhos_eig = dynamics.propagate(rho_0, t_init, t_final, dt, 
-                                                             is_verbose=False)
+                                                             is_verbose=dynamics_is_verbose)
 
-            # Remember: rhos_site is a Python list, not a numpy array
             rhos_site_avg += np.array(rhos_site)/self.ntraj
             rhos_eig_avg += np.array(rhos_eig)/self.ntraj
 
         if is_verbose:
             print "\n--- Finished performing RDM dynamics"
         
-        # Return as a list of 2D ndarrays
-        return times, [x for x in rhos_site_avg], [x for x in rhos_eig_avg]
+        return times, rhos_site_avg, rhos_eig_avg
 

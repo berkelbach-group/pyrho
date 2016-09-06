@@ -22,6 +22,9 @@ class Unitary(object):
 
         self.ham = hamiltonian
 
+    def setup(self):
+        pass
+
     def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True):
         """Propagate the RDM according to Unitary dynamics.
 
