@@ -60,7 +60,7 @@ class HamiltonianSystem(object):
 class Hamiltonian(HamiltonianSystem):
     """A system-bath Hamiltonian class"""
 
-    def __init__(self, ham_sys, ham_sysbath, spec_densities, kT, hbar=1, is_verbose=True):
+    def __init__(self, ham_sys, ham_sysbath, spec_densities, kT, hbar=1, is_verbose=True, sample_wigner=False):
         """Initialize the Hamiltonian class.
 
         Parameters
@@ -86,6 +86,7 @@ class Hamiltonian(HamiltonianSystem):
 
         self.init_system(ham_sys, is_verbose)
 
+        self.sample_wigner = sample_wigner
         self.sysbath = ham_sysbath
         self.spec_densities = spec_densities
         assert len(ham_sysbath) == len(spec_densities)
@@ -146,10 +147,16 @@ class Hamiltonian(HamiltonianSystem):
         return modes
 
     def sample_classical_modes(self, modes):
-        for n in range(self.nbath):
-            for mode in modes[n]:
-                mode.sample_boltzmann(const.kT)
-
+        if self.sample_wigner:
+            print 'Using Wigner Distribution'
+            for n in range(self.nbath):
+                for mode in modes[n]:
+                    mode.sample_wigner(const.kT)
+        else:
+            print 'Using Boltzmann Distribution'
+            for n in range(self.nbath):
+                for mode in modes[n]:
+                    mode.sample_boltzmann(const.kT)
 
 class SpecDens(object):
     """A spectral density class"""
@@ -370,4 +377,7 @@ class ClassicalHO:
     def sample_boltzmann(self, kT):
         self.Q = np.random.normal(0.0, np.sqrt(kT)/self.omega)
         self.P = np.random.normal(0.0, np.sqrt(kT))
+    def sample_wigner(self, kT):
+        self.Q = np.random.normal(0.0, np.sqrt(1/(2*self.omega*np.tanh(self.omega/(2*kT)))))
+        self.P = np.random.normal(0.0, np.sqrt(self.omega/(2*np.tanh(self.omega/(2*kT)))))
 
