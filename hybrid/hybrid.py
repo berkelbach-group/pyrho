@@ -9,7 +9,7 @@ class Hybrid(object):
     """A generic split-spectral-density "hybrid" dynamics class
     """
 
-    def __init__(self, hamiltonian, dynamics_slow, dynamics_fast, omega_split=None):
+    def __init__(self, hamiltonian, dynamics_slow, dynamics_fast, omega_split=None, use_PD=False):
         """Initialize the Hybrid class
 
         Parameters
@@ -20,11 +20,11 @@ class Hybrid(object):
         """
 
         utils.print_banner("PERFORMING RDM DYNAMICS WITH HYBRID METHOD")
- 
         self.ham = hamiltonian
         self.dynamics_slow = dynamics_slow
         self.dynamics_fast = dynamics_fast
         self.omega_split = omega_split
+        self.use_PD = use_PD
         self.setup()
 
     def setup(self):
@@ -47,7 +47,7 @@ class Hybrid(object):
             assert( len(self.omega_split) == self.ham.nbath )
 
         for n in range(self.ham.nbath):
-            Jslow, Jfast = partition_specdens(self.ham.sd[n].J, self.omega_split[n])
+            Jslow, Jfast = partition_specdens(self.ham.sd[n].J, self.omega_split[n], self.use_PD)
             self.dynamics_slow.ham.sd[n].J, self.dynamics_fast.ham.sd[n].J = Jslow, Jfast
 
     def propagate(self, rho_0, t_init, t_final, dt):
@@ -64,10 +64,12 @@ def switching(omega, omega_split):
     else:
         return 0.0
 
-def partition_specdens(J, omega_split):
+def partition_specdens(J, omega_split, use_PD):
     def Jfast(omega):
-        #pure_dephasing = J(omega)*(abs(omega) < 1e-10)
-        pure_dephasing = 0.
+        if use_PD:
+            pure_dephasing = J(omega)*(abs(omega) < 1e-4)
+        else:
+            pure_dephasing = 0.
         return (1-switching(omega,omega_split))*J(omega) + pure_dephasing
     def Jslow(omega):
         return switching(omega,omega_split)*J(omega)
