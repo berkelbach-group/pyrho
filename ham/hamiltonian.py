@@ -37,23 +37,23 @@ class HamiltonianSystem(object):
             print self.evals
 
     def site2eig(self, rho):
-        """Transform rho from the site basis to the eigen basis."""
-        return utils.matrix_dot(self.Umat.conj().T,rho,self.Umat)
+        """Transform rho (or many rhos) from the site basis to the eigen basis."""
+        def _site2eig(rho2):
+            return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
+        return utils.transform_rho(_site2eig, rho)
 
     def eig2site(self, rho):
-        """Transform rho from the eigen basis to the site basis."""
-        return utils.matrix_dot(self.Umat,rho,self.Umat.conj().T)
+        """Transform rho (or many rhos) from the eigen basis to the site basis."""
+        def _eig2site(rho2):
+            return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
+        return utils.transform_rho(_eig2site, rho)
 
     def to_interaction(self, rho, t):
         """Transform rho (in the eigen basis) into the interaction picture."""
-        #Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
-        #return utils.matrix_dot(Ut,rho,Ut.conj().T)
         return np.exp(-1j*self.omega_diff*t)*rho 
 
     def from_interaction(self, rho, t):
         """Transform rho (in the eigen basis) out of the interaction picture."""
-        #Ut = np.diag(np.exp(-1j*self.evals*t/const.hbar))
-        #return utils.matrix_dot(Ut.conj().T,rho,Ut)
         return np.exp(1j*self.omega_diff*t)*rho 
 
 
@@ -99,28 +99,6 @@ class Hamiltonian(HamiltonianSystem):
             self.sd.append(SpecDens(spec_dens))
             self.sd[n].write_Jw('Jw%d.dat'%(n))
             n += 1
-
-    def xxx_init_classical_modes(self,nmode=300):
-        modes = []
-        for n in range(self.nbath):
-            # Initialize classical bath frequencies and couplings
-            lamda_n = self.sd[n].lamda
-            omega_c_n = self.sd[n].omega_c
-            modes.append([])
-            for k in range(nmode):
-                if self.sd[n].sd_type == 'ohmic-exp':
-                    omega_nk = omega_c_n*(-np.log((k+0.5)/nmode))
-                    rho_wnk =  nmode/(np.pi*lamda_n*omega_nk)
-                    #c_nk = omega_nk*np.sqrt(2*lamda_n/nmode)
-                elif self.sd[n].sd_type == 'ohmic-lorentz':
-                    omega_nk = omega_c_n*np.tan((np.pi/2.)*(k+0.5)/nmode)
-                    rho_wnk = nmode/(np.pi*lamda_n*omega_nk)
-                else:
-                    print "SpecDens type", self.sd[n].sd_type, "not yet implemented for classical baths"
-                    raise NotImplementedError
-                c_nk = np.sqrt(2/np.pi * omega_nk / rho_wnk)
-                modes[n].append(ClassicalHO(omega_nk, None, None, c_nk))
-        return modes
 
     def init_classical_modes(self,nmode=300):
         modes = []
