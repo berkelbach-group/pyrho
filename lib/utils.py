@@ -71,6 +71,16 @@ def from_liouville(rho_vec, ns=None):
     #return rho
     return rho_vec.reshape(ns,ns).astype(np.complex_)
 
+def transform_rho(transform, rhos):
+    rhos = np.array(rhos)
+    rhos_trans = list()
+    if rhos.ndim == 3:
+        for rho in rhos:
+            rhos_trans.append(transform(rho))
+    else:
+        rhos_trans = transform(rhos)
+    return np.array(rhos_trans)
+
 def commutator(A,B):
     return np.dot(A,B) - np.dot(B,A)
 
