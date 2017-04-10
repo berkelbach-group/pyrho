@@ -47,22 +47,18 @@ class Unitary(object):
             The times at which the RDM has been calculated.
         rhos_site : list of np.arrays
             The RDM at each time in the site basis.
-        rhos_eig : list of np.arrays
-            The RDM at each time in the system eigen-basis.
 
         """
         times = np.arange(t_init, t_final, dt)
         rho_0_eig = self.ham.site2eig(rho_0)
 
         rhos_site = []
-        rhos_eig = []
         for time in times:
             rho_eig = self.ham.to_interaction(rho_0_eig, time)
-            rhos_eig.append(rho_eig)
             rhos_site.append(self.ham.eig2site(rho_eig))
 
         if is_verbose:
             print "\n--- Finished performing RDM dynamics"
         
-        return times, rhos_site, rhos_eig
+        return times, rhos_site
 

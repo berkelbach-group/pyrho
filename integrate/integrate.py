@@ -118,7 +118,7 @@ class Integrator(object):
             j = i-1
             if j >= 0:
                 Yi += dt*a[i,j]*k[j]
-            ki = np.dot(Omega, Yi) + np.dot(R(n,i), Yi)
+            ki = np.dot(Omega, Yi) + np.dot(R(int(self.t0/dt)+n,i), Yi)
             k.append( ki )
 
             dy += dt*b[i]*ki

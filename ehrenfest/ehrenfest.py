@@ -6,7 +6,8 @@ import numpy as np
 from pyrho.integrate import Integrator
 from pyrho.lib import const, utils
 
-class Ehrenfest(object):
+from pyrho.unitary import Unitary
+class Ehrenfest(Unitary):
     """An Ehrenfest (mean-field) class
     """
 
@@ -59,7 +60,69 @@ class Ehrenfest(object):
         p = p.reshape(self.ham.nbath,self.nmode)
         return rho, q, p
 
-    def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True):
+    def act_from_left(self, op, rho_bath):
+        rho, q, p = self.unpack(rho_bath)
+        op_rho = np.dot(op, rho)
+        return self.pack(op_rho, q, p)
+
+    def act_from_right(self, op, rho_bath):
+        rho, q, p = self.unpack(rho_bath)
+        rho_op = np.dot(rho, op)
+        return self.pack(rho_op, q, p)
+
+    def initialize_from_rdm(self, rho):
+        """Initialize a trajectory containing the RDM and bath modes.
+
+        Returns
+        -------
+        rho_bath : (nsite*nsite + nmode + nmode) ndarray
+            The RDM and each mode's Q and P.
+
+        """
+        modes = self.ham.init_classical_modes(self.nmode)
+        self.ham.sample_classical_modes(modes)
+        q = np.zeros((self.ham.nbath, self.nmode))
+        p = np.zeros((self.ham.nbath, self.nmode))
+        for n in range(self.ham.nbath):
+            for k in range(self.nmode):
+                q[n,k] = modes[n][k].Q
+                p[n,k] = modes[n][k].P
+        rho_bath = self.pack(rho.copy(), q, p)
+
+        # Precompute some "hidden" variables for speed
+        self._hamsb = np.array(self.ham.sysbath)
+        self._omegasq = np.zeros((self.ham.nbath, self.nmode))
+        self._c = np.zeros((self.ham.nbath, self.nmode))
+        for n,modes_n in enumerate(modes):
+            self._omegasq[n,:] = np.array([mode.omega**2 for mode in modes_n])
+            self._c[n:] = np.array([mode.c for mode in modes_n])
+
+        return rho_bath
+
+    def reduce_to_rdm(self, rho_bath_traj):
+        rho_traj = list()
+        for rho_bath in rho_bath_traj:
+            rho_t, q, p = self.unpack(rho_bath)
+            rho_traj.append(rho_t)
+        return np.array(rho_traj)
+
+    def propagate_full(self, rho_bath, t_init, t_final, dt):
+        times = np.arange(t_init, t_final, dt)
+        def deriv_fn(t,y):
+            return self.deriv(t,y)
+
+        rho_0, q, p = self.unpack(rho_bath)
+        integrator = Integrator('ODE', dt, deriv_fn=deriv_fn)
+        integrator.set_initial_value(self.pack(rho_0,q,p), t_init)
+
+        rho_bath_traj = list()
+        for time in times:
+            rho_bath_traj.append(np.array(integrator.y))
+            integrator.integrate()
+        
+        return times, np.array(rho_bath_traj)
+
+    def propagate(self, rho_0, t_init, t_final, dt):
         """Propagate the RDM according to Ehrenfest dynamics.
 
         Parameters
@@ -72,64 +135,21 @@ class Ehrenfest(object):
             The final time.
         dt : float
             The timestep.
-        is_verbose : bool
-            Flag to indicate verbose printing.
 
         Returns
         -------
         times : list of floats
             The times at which the RDM has been calculated.
-        rhos_site : list of np.arrays
+        rhos_site : 3D ndarray
             The RDM at each time in the site basis.
-        rhos_eig : list of np.arrays
-            The RDM at each time in the system eigen-basis.
 
         """
         times = np.arange(t_init, t_final, dt)
-        modes = self.modes = self.ham.init_classical_modes(self.nmode)
-        self._hamsb = np.array(self.ham.sysbath)
-        self._omegasq = np.zeros((self.ham.nbath,self.nmode))
-        self._c = np.zeros((self.ham.nbath,self.nmode))
-        for n,modes_n in enumerate(self.modes):
-            self._omegasq[n,:] = np.array([mode.omega**2 for mode in modes_n])
-            self._c[n:] = np.array([mode.c for mode in modes_n])
-
-        def deriv_fn(t,y):
-            return self.deriv(t,y)
-
         rhos_site_avg = np.zeros((len(times),self.ham.nsite,self.ham.nsite), dtype=np.complex) 
-        rhos_eig_avg = np.zeros((len(times),self.ham.nsite,self.ham.nsite), dtype=np.complex) 
         for trajectory in range(self.ntraj):
-            self.ham.sample_classical_modes(modes)
-            q = np.zeros((self.ham.nbath, self.nmode))
-            p = np.zeros((self.ham.nbath, self.nmode))
-            for n in range(self.ham.nbath):
-                for k in range(self.nmode):
-                    q[n,k] = modes[n][k].Q
-                    p[n,k] = modes[n][k].P
+            rho_bath = self.initialize_from_rdm(rho_0)
+            times, rhos_bath = self.propagate_full(rho_bath, t_init, t_final, dt)
+            rhos_site = self.reduce_to_rdm(rhos_bath)
+            rhos_site_avg += np.array(rhos_site)
 
-            integrator = Integrator('ODE', dt, deriv_fn=deriv_fn)
-            integrator.set_initial_value(self.pack(rho_0,q,p), t_init)
-
-            rhos_site = []
-            rhos_eig = []
-            for time in times:
-                # Retrieve data from integrator
-                rho_site, q, p = self.unpack(integrator.y)
-
-                # Collect results
-                rhos_site.append(rho_site)
-                rhos_eig.append(self.ham.site2eig(rho_site))
-
-                # Propagate one timestep
-                integrator.integrate()
-
-            # Remember: rhos_site is a Python list, not a numpy array
-            rhos_site_avg += np.array(rhos_site)/self.ntraj
-            rhos_eig_avg += np.array(rhos_eig)/self.ntraj
-
-        if is_verbose:
-            print "\n--- Finished performing RDM dynamics"
-        
-        # Return as a list of 2D ndarrays
-        return times, [x for x in rhos_site_avg], [x for x in rhos_eig_avg]
+        return times, rhos_site_avg/self.ntraj

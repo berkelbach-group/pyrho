@@ -54,8 +54,6 @@ class FrozenModes(Unitary):
             The times at which the RDM has been calculated.
         rhos_site : list of np.arrays
             The RDM at each time in the site basis.
-        rhos_eig : list of np.arrays
-            The RDM at each time in the system eigen-basis.
 
         """
         times = np.arange(t_init, t_final, dt)
@@ -69,7 +67,6 @@ class FrozenModes(Unitary):
             self._c[n:] = np.array([mode.c for mode in modes_n])
 
         rhos_site_avg = np.zeros((len(times),self.ham.nsite,self.ham.nsite), dtype=np.complex) 
-        rhos_eig_avg = np.zeros((len(times),self.ham.nsite,self.ham.nsite), dtype=np.complex) 
         for trajectory in range(self.ntraj):
             self.ham.sample_classical_modes(modes)
             q = np.zeros((self.ham.nbath, self.nmode))
@@ -90,14 +87,12 @@ class FrozenModes(Unitary):
                 dynamics.ham.init_system(ham_biased, is_verbose=dynamics_is_verbose)
             dynamics.is_verbose = dynamics_is_verbose
             dynamics.setup()
-            xtimes, rhos_site, rhos_eig = dynamics.propagate(rho_0, t_init, t_final, dt, 
-                                                             is_verbose=dynamics_is_verbose)
+            xtimes, rhos_site = dynamics.propagate(rho_0, t_init, t_final, dt,
+                                                   is_verbose=dynamics_is_verbose)
 
             rhos_site_avg += np.array(rhos_site)/self.ntraj
-            rhos_eig_avg += np.array(rhos_eig)/self.ntraj
 
         if is_verbose:
             print "\n--- Finished performing RDM dynamics"
         
-        return times, rhos_site_avg, rhos_eig_avg
-
+        return times, rhos_site_avg

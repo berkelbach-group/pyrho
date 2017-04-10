@@ -6,7 +6,8 @@ import numpy as np
 from pyrho.integrate import Integrator
 from pyrho.lib import const, utils
 
-class Redfield(object):
+from pyrho.unitary import Unitary
+class Redfield(Unitary):
     """A weak system-bath coupling (Redfield-like) class
     
     Follows Pollard and Friesner, J. Chem. Phys. 100, 5054 (1994);
@@ -14,7 +15,7 @@ class Redfield(object):
 
     """
 
-    def __init__(self, hamiltonian, method='Redfield', is_secular=False, is_verbose=True):
+    def __init__(self, hamiltonian, method='Redfield', is_secular=False, is_verbose=False):
         """Initialize the Redfield class.
 
         Parameters
@@ -62,14 +63,13 @@ class Redfield(object):
             self.K = self._tc_wrapper
             self.make_redfield_tensor(0.0)
             self.tensor_is_changing = True
-        else:
-            # Should never get here due to assertion above.
-            pass
 
     def _redfield_wrapper(self, n, i):
+        """A wrapper that yields a function-like interface to the Redfield tensor"""
         return self.redfield_tensor
 
     def _tcl_wrapper(self, n, i):
+        """A wrapper that yields a function-like interface to the TCL2 tensor"""
         if n > self.n_markov:
             n = self.n_markov
         # On coarse grid (throw away i-steps):
@@ -78,6 +78,7 @@ class Redfield(object):
         #return self.redfield_tensor_ni[n][i]
 
     def _tc_wrapper(self, n, i, l, j):
+        """A wrapper that yields a function-like interface to the TC2 tensor"""
         # On coarse grid (throw away i,j-steps): 
         if n-l > self.n_markov:
             return np.zeros_like(self.redfield_tensor_n[0])
@@ -185,27 +186,34 @@ class Redfield(object):
         self.redfield_tensor_n = []
         redfield_tensor_integral_n = []
         cost = []
+        if self.method == 'TCL2':
+            redfield_tensor_n = []
+            for time in np.arange(0.0, t_init, dt):
+                self.make_redfield_tensor(time)
+                redfield_tensor_n.append(self.redfield_tensor)
+            redfield_tensor_integral_0_t_init = np.trapz(redfield_tensor_n, dx=dt, axis=0)
+
         for n in range(n_timesteps):
-            t = t_init + n*dt
-            self.make_redfield_tensor(t)
+            time = t_init + n*dt
+            self.make_redfield_tensor(time)
             self.redfield_tensor_n.append(self.redfield_tensor)
 
             # Collect running integral for TCL2
             if self.method == 'TCL2':
-                redfield_tensor_integral_n.append(
-                        np.trapz(self.redfield_tensor_n[:n+1], dx=dt, axis=0) )
+                redfield_tensor_integral_n.append(redfield_tensor_integral_0_t_init
+                    + np.trapz(self.redfield_tensor_n[:n+1], dx=dt, axis=0) )
 
             cost.append( utils.tensor_diff( self.redfield_tensor, 
                                             self.redfield_tensor_n[n-1] ) )
             if n > 0 and cost[n] < self.markov_tol*np.std(cost):
                 if self.is_verbose:
-                    print "\n--- Tensor has stopped changing at t =", t
+                    print "\n--- Tensor has stopped changing at t =", time
                 self.n_markov = n
                 break
 
-            if n > 0 and t >= self.markov_time:
+            if n > 0 and time >= self.markov_time:
                 if self.is_verbose:
-                    print "\n--- Tensor calculation stopped at t =", t
+                    print "\n--- Tensor calculation stopped at t =", time
                 self.n_markov = n
                 break
 
@@ -219,10 +227,10 @@ class Redfield(object):
         cost_file = open('cost_%s.dat'%(self.method),'w')
         rate_file = open('rate_%s.dat'%(self.method),'w')
         for n in range(self.n_markov):
-            t = t_init + n*dt
+            time = t_init + n*dt
             cost_file.write('%0.6f %0.6f %0.6f %0.6f\n'
-                            %(t, cost[n], np.std(cost[:n+1]), self.markov_tol))
-            rate_file.write('%0.6f '%(t))
+                            %(time, cost[n], np.std(cost[:n+1]), self.markov_tol))
+            rate_file.write('%0.6f '%(time))
             for row in self.redfield_tensor_n[n]:
                 for R in row:
                     rate_file.write('%0.6f %0.6f '%(R.real, R.imag))
@@ -274,9 +282,16 @@ class Redfield(object):
         if self.is_verbose:
             print "\n--- Done precomputing the Redfield tensor"
 
+    def propagate_full(self, rho_0, t_init, t_final, dt,
+                  markov_tol = 1e-3, markov_time = np.inf,
+                  is_verbose=False):
+        return self.propagate(rho_0, t_init, t_final, dt,
+                  markov_tol, markov_time,
+                  is_verbose)
+
     def propagate(self, rho_0, t_init, t_final, dt, 
                   markov_tol = 1e-3, markov_time = np.inf,
-                  is_verbose=True):
+                  is_verbose=False):
         """Propagate the RDM according to Redfield-like dynamics.
 
         Parameters
@@ -303,8 +318,6 @@ class Redfield(object):
             The times at which the RDM has been calculated.
         rhos_site : list of np.arrays
             The RDM at each time in the site basis.
-        rhos_eig : list of np.arrays
-            The RDM at each time in the system eigen-basis.
 
         """
         self.markov_tol = markov_tol
@@ -316,15 +329,19 @@ class Redfield(object):
 
         integrator = Integrator(self.diffeq_type, dt, 
                                 Omega=self.Omega, R=self.R, K=self.K)
-        if self.method in ['TCL2', 'TC2']:
-            self.precompute_redfield_tensor(t_init, t_final, dt)
+        if self.method == 'TCL2':
+            if not hasattr(self, 'redfield_tensor_n'):
+                self.precompute_redfield_tensor(t_init, t_final, dt)
+            elif len(self.redfield_tensor_n) < int((t_final-t_init)/dt):
+                self.precompute_redfield_tensor(t_init, t_final, dt)
+        if self.method == 'TC2':
+                self.precompute_redfield_tensor(t_init, t_final, dt)
             #self.precompute_redfield_tensor_finegrid(t_init, t_final, dt, 
             #                                         integrator)
 
         integrator.set_initial_value(utils.to_liouville(rho_eig), t_init)
 
         rhos_site = []
-        rhos_eig = []
         for time in times:
             # Retrieve data from integrator
             rho_eig = utils.from_liouville(integrator.y)
@@ -332,7 +349,6 @@ class Redfield(object):
             # Collect results
             rho_site = self.ham.eig2site(rho_eig)
             rhos_site.append(rho_site)
-            rhos_eig.append(rho_eig)
 
             # Propagate one timestep
             integrator.integrate()
@@ -340,5 +356,5 @@ class Redfield(object):
         if is_verbose:
             print "\n--- Finished performing RDM dynamics"
         
-        return times, rhos_site, rhos_eig
+        return times, rhos_site
 

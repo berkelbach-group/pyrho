@@ -7,7 +7,8 @@ import itertools
 from pyrho.integrate import Integrator
 from pyrho.lib import const, utils
 
-class HEOM:
+from pyrho.unitary import Unitary
+class HEOM(Unitary):
     """A hierarchical equations of motion class
 
     Follows:
@@ -127,16 +128,16 @@ class HEOM:
         The "n-matrices" are a set of nbath x (K+1) matrices, whose elements
         are integers 0, 1, 2... which sum to a number less than or equal to L. 
         
-        This function creates a list (turned np.array) of those matrices
+        This function creates a list (turned ndarray) of those matrices
         "nmats", as well as a dictionary "nmat_hash" where each key is the
         n-matrix as a string and the value is the integer where that n-matrix
         is found in the "nmats" array.
 
-        Elsewhere, rho_hierarchy will be a list-like np.array indexed by the
+        Elsewhere, rho_hierarchy will be a list-like ndarray indexed by the
         integers 0, 1, 2, ... corresponding to the n-matrices.
         Thus,
-            n an integer    : rho_hierarchy[n]
-            nmat a np.array : rho_hierarchy[nmat_hash[nmat]]
+            n an integer   : rho_hierarchy[n]
+            nmat a ndarray : rho_hierarchy[nmat_hash[nmat]]
 
         See also
         --------
@@ -146,8 +147,8 @@ class HEOM:
 
         print "--- Initializing auxiliary density matrix hierarchy ...",
 
-        self.nmat_hash = {} 
-        self.nmats = []
+        self.nmat_hash = dict()
+        self.nmats = list()
 
         n_index = 0
         for njklist in itertools.product(range(self.Lmax+1), 
@@ -191,25 +192,31 @@ class HEOM:
                     
         print "done."
 
-    def initialize_rho_hierarchy(self, rho_site):
+    def initialize_from_rdm(self, rho_site):
         """Initialize the RDM to its initial value and the ADMs to zero.
 
         Parameters
         ----------
-        rho_site : np.array
+        rho_site : ndarray
             The initial RDM in the site basis.
 
         Returns
         -------
-        rho_hierarchy : np.array
-            The RDM+ADM hierarchy as a 1D np.array of 2D np.arrays.
+        rho_hierarchy : ndarray
+            The RDM+ADM hierarchy as a 3d ndarray (1D ndarray of 2D ndarrays).
 
         """
-        rho_hierarchy = []
+        rho_hierarchy = list()
         rho_hierarchy.append(rho_site)
         for n in range(1,len(self.nmats)): 
             rho_hierarchy.append(np.zeros_like(rho_site))
         return np.array(rho_hierarchy, dtype=np.complex_)
+
+    def reduce_to_rdm(self, rho_hierarchy):
+        if rho_hierarchy.ndim == 3:
+            return rho_hierarchy[0]
+        else:
+            return rho_hierarchy[:,0]
 
     def string2matrix(self, string, M, N):
         return np.array(list(string), dtype=np.uint8).reshape(M,N)
@@ -272,7 +279,7 @@ class HEOM:
 
     def heom_deriv(self, t, rho):
         hbar = const.hbar
-        drho = []
+        drho = list() 
         if self.ham.sd[0].sd_type == 'ohmic-lorentz':
             # Chen Eq. (15)
             cjk_over_gammajk = np.einsum('jk,jk->j', self.c, 1./self.gamma)
@@ -338,64 +345,55 @@ class HEOM:
 
     def act_from_left(self, op_sys, rho_hierarchy):
         """Act on a hierarchical set of density operators with a system operator."""
-        op_rho_hierarchy = []
+        op_rho_hierarchy = list() 
         for ado in rho_hierarchy:
             op_rho_hierarchy.append(np.dot(op_sys, ado))
         return np.array(op_rho_hierarchy)
 
     def act_from_right(self, op_sys, rho_hierarchy):
         """Act on a hierarchical set of density operators with a system operator."""
-        op_rho_hierarchy = []
+        op_rho_hierarchy = list() 
         for ado in rho_hierarchy:
             op_rho_hierarchy.append(np.dot(ado, op_sys))
         return np.array(op_rho_hierarchy)
 
-
-    def propagate(self, rho_0, t_init, t_final, dt,
-                  input_has_bath=False, output_has_bath=False,
-                  is_verbose=True):
-
-        if is_verbose:
-            print "--- Propagating RDM ...",
-
-        times = np.arange(t_init, t_final, dt)
-        self.write_bath_corr_fn(times)
-        if input_has_bath:
-            rho_hierarchy = rho_0.copy()
-        else:
-            rho_hierarchy = self.initialize_rho_hierarchy(rho_0)
-
+    def propagate_full(self, rho_hierarchy, t_init, t_final, dt):
         integrator = Integrator('ODE', dt, deriv_fn=self.heom_deriv)
         integrator.set_initial_value(rho_hierarchy, t_init)
 
-        rhos_site = []
-        rhos_eig = []
-        while integrator.t < t_final+1e-8:
-            #print " - Propagating at time t =", integrator.t
-
-            # Retrieve data from integrator
-            if output_has_bath:
-                rho_site = integrator.y
-                rho_eig = []
-                for ado_site in rho_site:
-                    rho_eig.append(self.ham.site2eig(ado_site))
-                rho_eig = np.array(rho_eig)
-                    
-            else:
-                rho_site = integrator.y[0]
-                rho_eig = self.ham.site2eig(rho_site)
-
-            # Collect results
-            rhos_site.append(rho_site.copy())
-            rhos_eig.append(rho_eig.copy())
-
-            # Propagate one timestep
+        rhos_site = list() 
+        times = np.arange(t_init, t_final, dt)
+        for time in times:
+            rhos_site.append(integrator.y.copy())
             integrator.integrate()
-
             # TODO(TCB): If filtering, check if we can remove any ADMs
 
-        if is_verbose:
-            print "done."
-        
-        return times, rhos_site, rhos_eig
+        return times, np.array(rhos_site)
 
+    def propagate(self, rho_0, t_init, t_final, dt):
+        """Propagate the RDM according to HEOM dynamics.
+
+        Parameters
+        ----------
+        rho_0 : np.array
+            The initial RDM.
+        t_init : float
+            The initial time.
+        t_final : float
+            The final time.
+        dt : float
+            The timestep.
+
+        Returns
+        -------
+        times : list of floats
+            The times at which the RDM has been calculated.
+        rhos_site : 3D ndarray
+            The RDM at each time in the site basis.
+
+        """
+        #self.write_bath_corr_fn(times)
+        rho_hierarchy = self.initialize_from_rdm(rho_0)
+        times, rhos_hierarchy = self.propagate_full(rho_hierarchy, t_init, t_final, dt)
+        rhos_site = self.reduce_to_rdm(rhos_hierarchy)
+        return times, rhos_site
