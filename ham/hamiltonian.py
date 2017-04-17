@@ -50,11 +50,11 @@ class HamiltonianSystem(object):
 
     def to_interaction(self, rho, t):
         """Transform rho (in the eigen basis) into the interaction picture."""
-        return np.exp(-1j*self.omega_diff*t)*rho 
+        return np.exp(1j*self.omega_diff*t)*rho 
 
     def from_interaction(self, rho, t):
         """Transform rho (in the eigen basis) out of the interaction picture."""
-        return np.exp(1j*self.omega_diff*t)*rho 
+        return np.exp(-1j*self.omega_diff*t)*rho 
 
 
 class Hamiltonian(HamiltonianSystem):
@@ -126,12 +126,12 @@ class Hamiltonian(HamiltonianSystem):
 
     def sample_classical_modes(self, modes):
         if self.sample_wigner:
-            print 'Using Wigner Distribution'
+            #print 'Using Wigner Distribution'
             for n in range(self.nbath):
                 for mode in modes[n]:
                     mode.sample_wigner(const.kT)
         else:
-            print 'Using Boltzmann Distribution'
+            #print 'Using Boltzmann Distribution'
             for n in range(self.nbath):
                 for mode in modes[n]:
                     mode.sample_boltzmann(const.kT)

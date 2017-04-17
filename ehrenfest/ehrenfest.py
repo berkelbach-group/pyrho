@@ -36,8 +36,15 @@ class Ehrenfest(Unitary):
         rho, q, p = self.unpack(yt)
 
         cq = np.einsum('nk,nk->n',self._c,q)
-        ham_t = self.ham.sys + np.einsum('nab,n->ab',self._hamsb,cq)
-        F_avg = np.einsum('nab,ba->n',self._hamsb,rho).real
+        ham_t = np.einsum('nab,n->ab',self._hamsb,cq)
+        ham_t = self.ham.to_interaction(self.ham.site2eig(ham_t), t)
+
+        hamsb_int = list()
+        for n, hamsb in enumerate(self._hamsb):
+            hamsb_int_n = self.ham.to_interaction(self.ham.site2eig(hamsb), t)
+            hamsb_int.append(hamsb_int_n)
+        hamsb_int = np.array(hamsb_int)
+        F_avg = np.einsum('nab,ba->n',hamsb_int,rho).real
 
         dq = p.copy()
         dp = - self._omegasq*q \
@@ -112,12 +119,15 @@ class Ehrenfest(Unitary):
             return self.deriv(t,y)
 
         rho_0, q, p = self.unpack(rho_bath)
+        rho_int_0 = self.ham.to_interaction(self.ham.site2eig(rho_0), t_init)
         integrator = Integrator('ODE', dt, deriv_fn=deriv_fn)
-        integrator.set_initial_value(self.pack(rho_0,q,p), t_init)
+        integrator.set_initial_value(self.pack(rho_int_0,q,p), t_init)
 
         rho_bath_traj = list()
         for time in times:
-            rho_bath_traj.append(np.array(integrator.y))
+            rho_int_t, qt, pt = self.unpack(np.array(integrator.y))
+            rho_t = self.ham.eig2site(self.ham.from_interaction(rho_int_t, time))
+            rho_bath_traj.append(self.pack(rho_t, qt, pt))
             integrator.integrate()
         
         return times, np.array(rho_bath_traj)
