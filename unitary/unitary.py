@@ -25,7 +25,10 @@ class Unitary(object):
     def setup(self):
         pass
 
-    def propagate(self, rho_0, t_init, t_final, dt, is_verbose=True):
+    def propagate_full(self, rho, t_init, t_final, dt, is_verbose=False):
+        return self.propagate(rho, t_init, t_final, dt, is_verbose)
+
+    def propagate(self, rho_0, t_init, t_final, dt, is_verbose=False):
         """Propagate the RDM according to Unitary dynamics.
 
         Parameters
@@ -54,7 +57,7 @@ class Unitary(object):
 
         rhos_site = []
         for time in times:
-            rho_eig = self.ham.to_interaction(rho_0_eig, time)
+            rho_eig = self.ham.to_interaction(rho_0_eig, time-t_init)
             rhos_site.append(self.ham.eig2site(rho_eig))
 
         if is_verbose:

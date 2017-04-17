@@ -38,7 +38,8 @@ class Redfield(Unitary):
         self.is_verbose = is_verbose
         self.setup()
 
-    def setup(self):
+    def initialize_from_rdm(self, rho):
+        rho = rho.copy()
         if self.is_secular:
             if self.is_verbose:
                 print "\n--- Using the secular approximation"
@@ -63,6 +64,8 @@ class Redfield(Unitary):
             self.K = self._tc_wrapper
             self.make_redfield_tensor(0.0)
             self.tensor_is_changing = True
+
+        return rho
 
     def _redfield_wrapper(self, n, i):
         """A wrapper that yields a function-like interface to the Redfield tensor"""
@@ -285,47 +288,11 @@ class Redfield(Unitary):
     def propagate_full(self, rho_0, t_init, t_final, dt,
                   markov_tol = 1e-3, markov_time = np.inf,
                   is_verbose=False):
-        return self.propagate(rho_0, t_init, t_final, dt,
-                  markov_tol, markov_time,
-                  is_verbose)
-
-    def propagate(self, rho_0, t_init, t_final, dt, 
-                  markov_tol = 1e-3, markov_time = np.inf,
-                  is_verbose=False):
-        """Propagate the RDM according to Redfield-like dynamics.
-
-        Parameters
-        ----------
-        rho_0 : np.array
-            The initial RDM.
-        t_init : float
-            The initial time.
-        t_final : float
-            The final time.
-        dt : float
-            The timestep.
-        markov_tol : float
-            The relative tolerance at which to decide that the memory tensor
-            has stopped changing (and henceforth Markovian).
-        markov_time : float
-            The hard-coded time to stop re-calculating the memory tensor.
-        is_verbose : bool
-            Flag to indicate verbose printing.
-
-        Returns
-        -------
-        times : list of floats
-            The times at which the RDM has been calculated.
-        rhos_site : list of np.arrays
-            The RDM at each time in the site basis.
-
-        """
         self.markov_tol = markov_tol
         self.markov_time = markov_time
 
         times = np.arange(t_init, t_final, dt)
-        rho_site = rho_0.copy()
-        rho_eig = self.ham.site2eig(rho_site)
+        rho_eig = self.ham.site2eig(rho_0)
 
         integrator = Integrator(self.diffeq_type, dt, 
                                 Omega=self.Omega, R=self.R, K=self.K)
@@ -358,3 +325,38 @@ class Redfield(Unitary):
         
         return times, rhos_site
 
+
+    def propagate(self, rho_0, t_init, t_final, dt,
+                  markov_tol = 1e-3, markov_time = np.inf,
+                  is_verbose=False):
+        """Propagate the RDM according to Redfield-like dynamics.
+
+        Parameters
+        ----------
+        rho_0 : np.array
+            The initial RDM.
+        t_init : float
+            The initial time.
+        t_final : float
+            The final time.
+        dt : float
+            The timestep.
+        markov_tol : float
+            The relative tolerance at which to decide that the memory tensor
+            has stopped changing (and henceforth Markovian).
+        markov_time : float
+            The hard-coded time to stop re-calculating the memory tensor.
+        is_verbose : bool
+            Flag to indicate verbose printing.
+
+        Returns
+        -------
+        times : list of floats
+            The times at which the RDM has been calculated.
+        rhos_site : list of np.arrays
+            The RDM at each time in the site basis.
+
+        """
+        rho_site = self.initialize_from_rdm(rho_0)
+        return self.propagate_full(rho_site, t_init, t_final, dt,
+                              markov_tol, markov_time, is_verbose)

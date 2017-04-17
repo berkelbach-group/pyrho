@@ -14,7 +14,7 @@ class Spectroscopy(object):
 
     def absorption(self, e_min, e_max, de, rho_0, t_final, dt,
                    dipole_file='dipole_dipole.dat',
-                   is_damped=False):
+                   is_damped=True):
 
         utils.print_banner("CALCULATING LINEAR ABSORPTION SPECTRUM")
 
@@ -60,18 +60,17 @@ class Spectroscopy(object):
 
         print "--- Spectrum will require O(%d) propagations."%(len(times)*len(time2s))
 
-        Rsignal = []
-        Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
-        Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
-        
         print "--- Calculating third-order response function ...",
 
         try:
-            for traj in self.dynamics.ntraj:
+            Rsignal = []
+            Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
+            Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
+            for traj in range(self.dynamics.ntraj):
                 R_rp, R_nr = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt)
                 Rsignal[0] += R_rp/self.dynamics.ntraj
                 Rsignal[1] += R_nr/self.dynamics.ntraj
-        except:
+        except AttributeError:
             Rsignal = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt)
 
         print "done."
@@ -140,7 +139,7 @@ class Spectroscopy(object):
 
         try:
             rho_g_bath = self.dynamics.initialize_from_rdm(rho_g)
-        except:
+        except AttributeError:
             rho_g_bath = rho_g.copy()
 
         Rsignal = []
@@ -166,7 +165,7 @@ class Spectroscopy(object):
                                             rho_t2_0, time1+time2, time1+time2+time_final, dt)
                         try:
                             rhos_t3 = self.dynamics.reduce_to_rdm(rhos_t3)
-                        except:
+                        except AttributeError:
                             pass
 
                         for t3, time3 in enumerate(time3s):
@@ -180,12 +179,12 @@ class Spectroscopy(object):
         if side == 'L':
             try:
                 return self.dynamics.act_from_left(op,rho)
-            except:
+            except AttributeError:
                 return np.dot(op,rho)
         else:
             try:
                 return self.dynamics.act_from_right(op,rho)
-            except:
+            except AttributeError:
                 return np.dot(rho,op)
             
 
