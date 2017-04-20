@@ -53,12 +53,14 @@ class Unitary(object):
 
         """
         times = np.arange(t_init, t_final, dt)
-        rho_0_eig = self.ham.site2eig(rho_0)
+        rho_int_0 = self.ham.to_interaction(self.ham.site2eig(rho_0), t_init)
 
-        rhos_site = []
+        rhos_site = list()
         for time in times:
-            rho_eig = self.ham.to_interaction(rho_0_eig, time-t_init)
-            rhos_site.append(self.ham.eig2site(rho_eig))
+            # Note: In the interaction picture, rho(t) = rho(0), so just "come out" of the
+            # interaction picture to do Schrodinger time evolution.
+            rho_t = self.ham.eig2site(self.ham.from_interaction(rho_int_0, time))
+            rhos_site.append(rho_t)
 
         if is_verbose:
             print "\n--- Finished performing RDM dynamics"
