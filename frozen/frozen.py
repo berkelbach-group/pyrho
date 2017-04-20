@@ -60,13 +60,16 @@ class FrozenModes(Unitary):
         """
         utils.print_banner("PERFORMING FROZEN MODES DYNAMICS")
 
-        self.ham = hamiltonian
+        # .copy() is important to have an instance that is not updated by FM sampling
+        # FrozenModes.ham.sys must always be the original, dynamics.ham.sys will be
+        # updated in each realization
+        self.ham = hamiltonian.copy()
         self.nmode = nmode
         self.ntraj = ntraj
 
         if dynamics is None:
             # Pure frozen modes with unitary dynamics
-            self.dynamics = unitary.Unitary(self.ham.copy())
+            self.dynamics = unitary.Unitary(hamiltonian)
         else:
             # "Hybrid" frozen modes with dissipative dynamics
             self.dynamics = dynamics
@@ -115,8 +118,8 @@ class FrozenModes(Unitary):
 
         cq = np.einsum('nk,nk->n',self._c,q)
         frozen_bias = np.einsum('nab,n->ab',self._hamsb,cq)
+        # Careful here that self.ham and self.dynamics.ham are not the same object
         ham_biased = self.ham.sys + frozen_bias
-
         self.dynamics.ham.init_system(ham_biased, is_verbose=False)
         try:
             rho = self.dynamics.initialize_from_rdm(rho)
