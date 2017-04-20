@@ -6,12 +6,41 @@ import numpy as np
 from pyrho import ham, unitary
 from pyrho.lib import const, utils
 
+
+def switching(omega, omega_split):
+    '''Switching function that switches smoothly from 1 (at omega=0)
+    to 0 (at omega=omega_split)
+    '''
+    if abs(omega) < omega_split:
+        return (1 - (omega/omega_split)**2)**2
+    else:
+        return 0.0
+
+
+def partition_specdens(J, omega_split, use_PD=True):
+    def Jfast(omega):
+        if use_PD:
+            pure_dephasing = J(omega)*(abs(omega) < 1e-4)
+        else:
+            pure_dephasing = 0.
+        return (1-switching(omega,omega_split))*J(omega) + pure_dephasing
+    def Jslow(omega):
+        return switching(omega,omega_split)*J(omega)
+
+    return Jslow, Jfast
+
+
+def rabi_two_level(ham):
+    return 2*np.sqrt( (ham[0,0]-ham[1,1])**2/4.0 + ham[0,1]**2 )/const.hbar
+
+
 from pyrho.unitary import Unitary
 class FrozenModes(Unitary):
     """A FrozenModes class
     """
 
-    def __init__(self, hamiltonian, dynamics=None, nmode=300, ntraj=100):
+    def __init__(self, hamiltonian, nmode=300, ntraj=100,
+                 dynamics=None, omega_split=None, use_PD=True):
         """Initialize the FrozenModes class.
 
         Parameters
@@ -31,14 +60,39 @@ class FrozenModes(Unitary):
         """
         utils.print_banner("PERFORMING FROZEN MODES DYNAMICS")
 
-        import copy
         self.ham = hamiltonian
-        if dynamics is None:
-            self.dynamics = unitary.Unitary(copy.deepcopy(self.ham))
-        else:
-            self.dynamics = dynamics
         self.nmode = nmode
         self.ntraj = ntraj
+
+        if dynamics is None:
+            # Pure frozen modes with unitary dynamics
+            self.dynamics = unitary.Unitary(self.ham.copy())
+        else:
+            # "Hybrid" frozen modes with dissipative dynamics
+            self.dynamics = dynamics
+            if omega_split is None:
+                # Determine splitting frequency
+                omega_split = list()
+                if self.ham.nsite == 2:
+                    omega_R = 2*np.sqrt( (ham[0,0]-ham[1,1])**2/4.0 + ham[0,1]**2 )/const.hbar
+                else:
+                    print "Automated splitting frequency for Nsys > 2 not implemented!"
+                    raise SystemExit
+
+                for n in range(self.ham.nbath):
+                    omega_split.append( omega_R/4. )
+
+            else:
+                assert( len(omega_split) == self.ham.nbath )
+
+            for n in range(self.ham.nbath):
+                print "\n--- Splitting energy for bath %d = %0.2lf"%(
+                            n, const.hbar*omega_split[n] )
+
+            for n in range(self.ham.nbath):
+                Jslow, Jfast = partition_specdens(self.ham.sd[n].J, omega_split[n], use_PD)
+                self.ham.sd[n].J, self.dynamics.ham.sd[n].J = Jslow, Jfast
+
 
     def initialize_from_rdm(self, rho):
         """Initialize a trajectory containing the RDM and update the system

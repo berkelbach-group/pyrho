@@ -19,6 +19,8 @@ class Hybrid(object):
 
         """
 
+        raise NotImplementedError
+
         utils.print_banner("PERFORMING RDM DYNAMICS WITH HYBRID METHOD")
         self.ham = hamiltonian
         self.dynamics_slow = dynamics_slow

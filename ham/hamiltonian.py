@@ -22,6 +22,10 @@ class HamiltonianSystem(object):
         """
         const.hbar = hbar
         self.init_system(ham_sys, is_verbose)
+
+    def copy(self):
+        import copy
+        return copy.deepcopy(self)
         
     def init_system(self, ham_sys, is_verbose=True):
         self.sys = ham_sys
