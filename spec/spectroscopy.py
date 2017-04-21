@@ -43,9 +43,14 @@ class Spectroscopy(object):
     def two_dimensional(self, e1_min, e1_max, de1, 
                               e3_min, e3_max, de3,
                               time2_min, time2_max, dt2,
-                              rho_g, time_final, dt):
+                              rho_g, time_final, dt, lioupath = 'total', is_damped=True):
 
         utils.print_banner("CALCULATING TWO-DIMENSIONAL SPECTRUM")
+        
+        if lioupath == 'total':
+            print '--- Including all Liouville pathways.'
+        else:
+            print '--- Including only selected Liouville pathways.'
 
         energy1s = np.arange(e1_min, e1_max, de1)
         energy3s = np.arange(e3_min, e3_max, de3)
@@ -67,11 +72,14 @@ class Spectroscopy(object):
             Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
             Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
             for traj in range(self.dynamics.ntraj):
-                R_rp, R_nr = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt)
+                R_rp, R_nr = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath)
                 Rsignal[0] += R_rp/self.dynamics.ntraj
                 Rsignal[1] += R_nr/self.dynamics.ntraj
         except AttributeError:
-            Rsignal = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt)
+            Rsignal = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath)
+     # print time correlation R3
+    #   for n in range(1,len(times)-1):
+    #       print Rsignal[0][0,0,n].real
 
         print "done."
         print "--- Performing 2D Fourier transform ...",
@@ -109,7 +117,7 @@ class Spectroscopy(object):
 
         return energy1s, energy3s, time2s, spectra
 
-    def calculate_R3(self, rho_g, time2_min, time2_max, dt2, time_final, dt):
+    def calculate_R3(self, rho_g, time2_min, time2_max, dt2, time_final, dt, lioupath='Total', is_damped=True):
         time2s = np.arange(time2_min, time2_max, dt2)
         times = np.arange(0.0, time_final, dt)
         dt2_over_dt = int(dt2/dt)
@@ -129,10 +137,60 @@ class Spectroscopy(object):
         # e.g. just the ESA of the non-rephasing spectrum:
         # mu_rp = []
         # mu_nr = [mu_nr_esa]
+        
+        # single liouville pathway
+        assert(lioupath in ['total','allrp','allnr','allese','allesa','allgsb','rpese','nrese','rpesa','nresa','rpgsb','nrgsb'])
+        if lioupath =='total':
+            mu_rp = [mu_rp_ese, mu_rp_gsb, mu_rp_esa]
+            mu_nr = [mu_nr_ese, mu_nr_gsb, mu_nr_esa]
+
+        elif lioupath =='allrp':
+            mu_rp = [mu_rp_ese, mu_rp_gsb, mu_rp_esa]
+            mu_nr = []
+
+        elif lioupath =='allnr':
+            mu_rp = []
+            mu_nr = [mu_nr_ese, mu_nr_gsb, mu_nr_esa]
+
+        elif lioupath =='allese':
+            mu_rp = [mu_rp_ese]
+            mu_nr = [mu_nr_ese]
+        
+        elif lioupath =='allesa':
+            mu_rp = [mu_rp_esa]
+            mu_nr = [mu_nr_esa]
+        
+        elif lioupath =='allgsb':
+            mu_rp = [mu_rp_gsb]
+            mu_nr = [mu_nr_gsb]
+
+        elif lioupath =='rpese':
+            mu_rp = [mu_rp_ese]
+            mu_nr = []
+
+        elif lioupath =='rpgsb':
+            mu_rp = [mu_rp_gsb]
+            mu_nr = []
+
+        elif lioupath =='rpesa':
+            mu_rp = [mu_rp_esa]
+            mu_nr = []
+
+        elif lioupath =='nrese':
+            mu_rp = []
+            mu_nr = [mu_nr_ese]
+
+        elif lioupath =='nrgsb':
+            mu_rp = []
+            mu_nr = [mu_nr_gsb]
+
+        elif lioupath =='nresa':
+            mu_rp = []
+            mu_nr = [mu_nr_esa]
 
         # Total 2D spectrum:
-        mu_rp = [mu_rp_ese, mu_rp_gsb, mu_rp_esa]
-        mu_nr = [mu_nr_ese, mu_nr_gsb, mu_nr_esa]
+        # mu_rp = [mu_rp_ese, mu_rp_gsb, mu_rp_esa]
+        # mu_nr = [mu_nr_ese, mu_nr_gsb, mu_nr_esa]
 
         # This part never changes
         mu_ops = [mu_rp, mu_nr]
@@ -146,6 +204,7 @@ class Spectroscopy(object):
         Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
         Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
 
+        t_damp = 0.
         for ph in [0,1]:
             for mu_op in mu_ops[ph]:
                 rho_0 = self.act(mu_op[0],rho_g_bath)
@@ -172,7 +231,12 @@ class Spectroscopy(object):
                             rho_t3 = rhos_t3[t3]
                             sign = mu_op[3]
                             Rsignal[ph][t3,t2,t1] += sign*np.trace(np.dot(mu_m,rho_t3))
+                            if is_damped and t1 >= t_damp and t3 >= t_damp:
+                        
+                                Rsignal[ph][t3,t2,t1] *= switch_to_zero(t3,t_damp,len(times)) 
+                                Rsignal[ph][t3,t2,t1] *= switch_to_zero(t1,t_damp,len(times))
         return Rsignal
+
 
     def act(self, opside, rho):
         op, side = opside
