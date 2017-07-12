@@ -43,7 +43,8 @@ class Spectroscopy(object):
     def two_dimensional(self, e1_min, e1_max, de1, 
                               e3_min, e3_max, de3,
                               time2_min, time2_max, dt2,
-                              rho_g, time_final, dt, lioupath = 'total', is_damped=True):
+                              rho_g, time_final, dt, 
+                              lioupath='total', is_damped=True):
 
         utils.print_banner("CALCULATING TWO-DIMENSIONAL SPECTRUM")
         
@@ -117,7 +118,7 @@ class Spectroscopy(object):
 
         return energy1s, energy3s, time2s, spectra
 
-    def calculate_R3(self, rho_g, time2_min, time2_max, dt2, time_final, dt, lioupath='Total', is_damped=True):
+    def calculate_R3(self, rho_g, time2_min, time2_max, dt2, time_final, dt, lioupath='total', is_damped=True):
         time2s = np.arange(time2_min, time2_max, dt2)
         times = np.arange(0.0, time_final, dt)
         dt2_over_dt = int(dt2/dt)
@@ -293,20 +294,35 @@ def convert_to_xx(ham_sys_x, ham_sysbath_x, dipole_x):
         ham_sysbath.append( 
             scipy.linalg.block_diag([[0]], ham_sysbath_x[b], ham_sysbath_xx_b) )
 
+    if len(np.array(dipole_x).shape) == 1:
+        dipole_x_vec = np.array(dipole_x)
+        dipole_x = np.zeros((1+nx,1+nx))
+        for i in range(nx):
+            dipole_x[0,i+1] = dipole_x[i+1,0] = dipole_x_vec[i]
+
     dipole_xx = np.zeros((nx,nxx))
     for i in range(nx):
         mn = 0
         for m in range(nx):
             for n in range(m):
-                dipole_xx[i,mn] = dipole_x[m]*(i==n) + dipole_x[n]*(i==m)
+                dipole_xx[i,mn] = dipole_x[0,m+1]*(i==n) + dipole_x[0,n+1]*(i==m)
                 mn += 1
 
     dipole = np.zeros((1+nx+nxx,1+nx+nxx))
     for i in range(nx):
-        dipole[0,i+1] = dipole[i+1,0] = dipole_x[i]
+        dipole[0,i+1] = dipole[i+1,0] = dipole_x[0,i+1]
         mn = 0
         for m in range(nx):
             for n in range(m):
                 dipole[i+1,mn+1+nx] = dipole[mn+1+nx,i+1] = dipole_xx[i,mn]
+                mn += 1
+
+    for i in range(nx):
+        dipole[i+1,i+1] = dipole_x[i+1,i+1]
+
+    #mn = 0 
+    #for m in range(nx):
+    #    for n in range(m):
+    #        dipole[mn+1+nx,mn+1+nx] = dipole_x[1+m,1+m] + dipole_x[1+n,1+n]
 
     return ham_sys, ham_sysbath, dipole
