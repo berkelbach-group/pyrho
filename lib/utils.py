@@ -84,6 +84,9 @@ def transform_rho(transform, rhos):
 def commutator(A,B):
     return np.dot(A,B) - np.dot(B,A)
 
+def anticommutator(A,B):
+    return np.dot(A,B) + np.dot(B,A)
+
 def print_banner(text):
     Nchar = len(text)
     Nstar = max(56,Nchar+7) 
