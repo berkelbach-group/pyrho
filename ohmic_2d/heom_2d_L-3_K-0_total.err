@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "driver.py", line 92, in <module>
+    main()
+  File "driver.py", line 64, in main
+    my_method.write_bath_corr_fn(np.arange(0.0,t_final,dt))
+  File "/home/jfetherolf/Python/pyrho/heom/heom.py", line 119, in write_bath_corr_fn
+    ct_j = np.dot(self.c[j,:], np.exp(-self.gamma[j,:]*time))
+AttributeError: 'HEOM' object has no attribute 'c'

@@ -31,6 +31,7 @@ class HamiltonianSystem(object):
         self.sys = ham_sys
         self.nsite = ham_sys.shape[0]
         self.evals, self.Umat = utils.diagonalize(self.sys)
+       
         self.omega_diff = np.zeros((self.nsite,self.nsite))
         for i in range(self.nsite):
             for j in range(self.nsite):
@@ -59,7 +60,6 @@ class HamiltonianSystem(object):
     def from_interaction(self, rho, t):
         """Transform rho (in the eigen basis) out of the interaction picture."""
         return np.exp(-1j*self.omega_diff*t)*rho 
-
 
 class Hamiltonian(HamiltonianSystem):
     """A system-bath Hamiltonian class"""
@@ -95,16 +95,18 @@ class Hamiltonian(HamiltonianSystem):
         self.spec_densities = spec_densities
         assert len(ham_sysbath) == len(spec_densities)
         self.nbath = len(ham_sysbath)
-
         # 'sd' is a list of 'SpecDens' instances that have member 
         # variables lamda, omega_c and member function J(omega)
         self.sd = []
+        self.coupling = []
         n = 0
         for spec_dens in self.spec_densities:
             self.sd.append(SpecDens(spec_dens))
             self.sd[n].write_Jw('Jw%d.dat'%(n))
             n += 1
-
+#        self.sysbath_eig = []
+#        for n in range(self.nbath):
+#            self.sysbath_eig.append(self.site2eig(self.sysbath[n]))
     def init_classical_modes(self,nmode=300):
         modes = []
         for n in range(self.nbath):
@@ -202,21 +204,15 @@ class SpecDens(object):
         """Evaluate an Ohmic spectral density with an exponential cutoff."""
         w = abs(omega)
         Jw = (np.pi*self.lamda/self.omega_c)*w*np.exp(-w/self.omega_c)
-        if omega > 0:
-            return Jw
-        else:
-            return -Jw
-
+        return Jw*(omega >= 0) - Jw*(omega < 0)
+    
     def ohmic_lorentz(self, omega):
         """Evaluate an Ohmic spectral density with a Lorentzian cutoff 
         (aka Debye spectral density)."""
         w = abs(omega)
         Jw = 2*self.lamda*self.omega_c*w/(w**2 + self.omega_c**2)
-        if omega > 0:
-            return Jw
-        else:
-            return -Jw
-
+        return Jw*(omega >= 0) - Jw*(omega < 0)
+   
     def cubic_exp(self, omega):
         """Evaluate a cubic (super-Ohmic) spectral density with an exponential
         cutoff.
@@ -230,11 +226,8 @@ class SpecDens(object):
         """
         w = abs(omega)
         Jw = (np.pi*self.lamda/(2*self.omega_c**3))*w**3*np.exp(-w/self.omega_c)
-        if omega > 0:
-            return Jw
-        else:
-            return -Jw
-
+        return Jw*(omega >= 0) - Jw*(omega < 0)
+    
     def ohmic_lorentz_oscillators(self, omega):
         w = abs(omega)
         Jw = 0.0
@@ -244,11 +237,8 @@ class SpecDens(object):
             Jw += ( lamda*(gamma/2.)*w
                     *( 1.0/( (w-omega_osc)**2 + (gamma/2.)**2 )
                       +1.0/( (w+omega_osc)**2 + (gamma/2.)**2 ) ) )
-        if omega > 0:
-            return Jw
-        else:
-            return -Jw
-
+        return Jw*(omega >= 0) - Jw*(omega < 0) 
+    
     #def oscillators(self, omega):
     #    # Should never actually call this function!
     #    # TCB 10/5/15 - Why not?
@@ -274,7 +264,7 @@ class SpecDens(object):
                                 limit=1000, weight='sin', wvar=t)
         re_Ct, im_Ct = re_Ct[0], -im_Ct[0]
         return (1.0/np.pi)*(re_Ct + 1j*im_Ct)
-
+    
     def bath_corr_ft(self, omega, t):
         """Evaluate the pseudo-Fourier-Laplace transform of the bath corr fn.
 
@@ -331,7 +321,78 @@ class SpecDens(object):
         omega += 1e-14
         n_omega = 0.5*(coth(beta*hbar*omega/2) - 1.0)
         return hbar*self.J(omega)*(n_omega+1)
+   
+# Integrate g(t) via Riemann sum
+    def line_func(self, t):
+        dw = self.omega_inf/1000.
+        omegas = np.arange(-self.omega_inf, self.omega_inf, dw)
+#        weight = dw - 0.5*dw*(omega==(-int(self.omega_inf/dw)-1) or omega==(int(self.omega_inf/dw)-1))
+        re_gt_integrand = (1-np.cos(omegas*t))*self.re_line_func(omegas)
+        re_gt = dw*np.sum(re_gt_integrand)
+#        weight = dw - 0.5*dw*(omega==(-int(self.omega_inf/dw)-1) or omega==(int(self.omega_inf/dw)-1))
+        im_gt_integrand = np.sin(omegas*t)*self.im_line_func(omegas)
+        im_gt = dw*np.sum(im_gt_integrand)
+        return (0.5/(np.pi*const.hbar))*(re_gt + 1j*im_gt) - (1j/(const.hbar))*self.lamda*t
 
+    def re_line_func(self, omega):
+        """Real part of the FT integrand for the lineshape function."""
+        def coth(x):
+            return 1.0/np.tanh(x)
+        beta = 1.0/const.kT
+        hbar = const.hbar
+        omega += 1e-14
+        return self.J(omega)*coth(beta*hbar*omega/2)/(omega**2)
+    
+    def im_line_func(self, omega):
+        """Imaginary part of the FT integrand for the lineshape function."""
+        def coth(x):
+            return 1.0/np.tanh(x)
+        beta = 1.0/const.kT
+        hbar = const.hbar
+        omega += 1e-14
+        return self.J(omega)/(omega**2)  
+    
+# Markovian population relaxation rate sans system-bath coupling element G
+    def markov_poprate(self, omega):
+        def coth(x):
+            return 1.0/np.tanh(x)
+        beta = 1.0/const.kT
+        hbar = const.hbar
+        omega += 1e-14
+        def n(omega):
+            return 0.5*(coth(beta*hbar*omega/2) - 1.0)
+        
+        return (2./hbar)*self.J(omega)*n(omega)*(omega >= 0.) + (2./hbar)*self.J(-omega)*(n(-omega)+1)*(omega < 0.)
+
+# Integrate secular non-markovian population relaxation rate sans G; w_mk is the frequency difference between the two states in question
+    def sec_poprate(self, w_mk, t):
+        dw = self.omega_inf/500.
+        omegas = np.arange(-self.omega_inf, self.omega_inf, dw)
+        def coth(x):
+            return 1.0/np.tanh(x)
+        beta = 1.0/const.kT
+        hbar = const.hbar
+        omegas += 1e-14
+        n_omega = 0.5*(coth(beta*hbar*omegas/2) - 1.0)
+        
+        re_pop_integrand = self.J(omegas)*(omegas**2)*((n_omega-1.)*(np.cos((w_mk-omegas)*t)-1)/((w_mk-omegas)**2) + n_omega*(np.cos((-w_mk-omegas)*t)-1)/((-w_mk-omegas)**2))
+        re_pop = dw*np.sum(re_pop_integrand)
+        
+        im_pop_integrand = self.J(omegas)*(omegas**2)*((n_omega+1)*(np.sin((w_mk-omegas)*t)-(w_mk-omegas)*t)/((w_mk-omegas)**2) - n_omega*(np.sin(-w_mk-omegas*t)-(-w_mk-omegas)*t)/((-w_mk-omegas)**2))
+        im_pop = dw*np.sum(im_pop_integrand)
+        
+        return 0.5*(re_pop + 1j*im_pop)
+
+#    poprates = np.zeros(len(omega_diff))
+#    for l in range(self.nbath):
+#        for n in range(self.omega_diff):
+#            for m in range(self.omega_diff):
+#                poprates[n] = (self.sysbath_eig[l][n,m]**2)*pop_rate(omega_diff[m,n])
+#        if omega >= 0.:
+#            return (2./hbar)*self.J(omega)*n(omega)
+#        if omega < 0.:
+#            return (2./hbar)*self.J(-omega)*(n(-omega)+1)
+  
     def write_Jw(self, filename):
         """Write the spectral density to a file."""
         Jw_file = open(filename,'w')

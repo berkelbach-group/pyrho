@@ -181,14 +181,14 @@ class Spectroscopy(object):
                     time, Ct.real, Ct.imag))
                 Cw += weight*(expi[:,t]*Ct).real
 
-            fdipole.close()
-        
-            return energies, Cw
+        fdipole.close()
+        return energies, Cw
 
     def two_dimensional(self, e1_min, e1_max, de1, 
                               e3_min, e3_max, de3,
                               time2_min, time2_max, dt2,
-                              rho_g, time_final, dt, lioupath = 'total', is_damped=True, lineshape_func = False):
+                              rho_g, time_final, dt, 
+                              lioupath='total', is_damped=True):
 
         utils.print_banner("CALCULATING TWO-DIMENSIONAL SPECTRUM")
         
@@ -212,17 +212,16 @@ class Spectroscopy(object):
 
         print "--- Calculating third-order response function ...",
 
-
         try:
             Rsignal = []
             Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
             Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
             for traj in range(self.dynamics.ntraj):
-                R_rp, R_nr = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath, lineshape_func=lineshape_func)
+                R_rp, R_nr = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath)
                 Rsignal[0] += R_rp/self.dynamics.ntraj
                 Rsignal[1] += R_nr/self.dynamics.ntraj
         except AttributeError:
-            Rsignal = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath, lineshape_func=lineshape_func)
+            Rsignal = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath)
      # print time correlation R3
     #   for n in range(1,len(times)-1):
     #       print Rsignal[0][0,0,n].real
@@ -261,14 +260,15 @@ class Spectroscopy(object):
         for t2 in range(len(time2s)):
             spectra.append( spectrum[:,t2,:] )
 
-        return energy1s, energy3s, time2s, spectra, times, Rsignal
+        return energy1s, energy3s, time2s, spectra
 
-    def calculate_R3(self, rho_g, time2_min, time2_max, dt2, time_final, dt, lioupath='Total', is_damped=True, lineshape_func=False):
-        
+    def calculate_R3(self, rho_g, time2_min, time2_max, dt2, time_final, dt, lioupath='total', is_damped=True):
         time2s = np.arange(time2_min, time2_max, dt2)
         times = np.arange(0.0, time_final, dt)
         dt2_over_dt = int(dt2/dt)
 
+        mu_p = np.tril(self.dipole_site)
+        mu_m = np.triu(self.dipole_site)
 
         if lineshape_func == True:
             assert(self.dynamics.ham.nsite == 2)
@@ -410,51 +410,50 @@ class Spectroscopy(object):
             # This part never changes
             mu_ops = [mu_rp, mu_nr]
 
-            try:
-                rho_g_bath = self.dynamics.initialize_from_rdm(rho_g)
-            except AttributeError:
-                rho_g_bath = rho_g.copy()
+        # This part never changes
+        mu_ops = [mu_rp, mu_nr]
 
-            Rsignal = []
-            Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
-            Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
+        try:
+            rho_g_bath = self.dynamics.initialize_from_rdm(rho_g)
+        except AttributeError:
+            rho_g_bath = rho_g.copy()
 
-            t_damp = 0.
-           # self.dynamics.precompute_redfield_tensor(0.0,3*time_final+2*time2_max+dt+1e-3,dt)
-            for ph in [0,1]:
-                for mu_op in mu_ops[ph]:
-                    rho_0 = self.act(mu_op[0],rho_g_bath)
-                    time1s, rhos_t1 = self.dynamics.propagate_full(
-                                        rho_0, 0.0, time_final, dt)
+        Rsignal = []
+        Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
+        Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
 
-                    for t1, time1 in enumerate(times):
-                        rho_t1 = rhos_t1[t1]
-                        rho_t1_0 = self.act(mu_op[1],rho_t1)
-                        _time2s, rhos_t2 = self.dynamics.propagate_full(
-                                            rho_t1_0, time1+time2_min, time1+time2_max, dt)
+        t_damp = 0.
+        for ph in [0,1]:
+            for mu_op in mu_ops[ph]:
+                rho_0 = self.act(mu_op[0],rho_g_bath)
+                time1s, rhos_t1 = self.dynamics.propagate_full(
+                                    rho_0, 0.0, time_final+time2_max+time_final, dt)
 
-                        for t2, time2 in enumerate(time2s):
-                            rho_t2 = rhos_t2[t2*dt2_over_dt]
-                            rho_t2_0 = self.act(mu_op[2],rho_t2)
-                            time3s, rhos_t3 = self.dynamics.propagate_full(
-                                                rho_t2_0, time1+time2, time1+time2+time_final, dt)
-                            try:
-                                rhos_t3 = self.dynamics.reduce_to_rdm(rhos_t3)
-                            except AttributeError:
-                                pass
+                for t1, time1 in enumerate(times):
+                    rho_t1 = rhos_t1[t1]
+                    rho_t1_0 = self.act(mu_op[1],rho_t1)
+                    _time2s, rhos_t2 = self.dynamics.propagate_full(
+                                        rho_t1_0, time1+time2_min, time1+time2_max, dt)
 
-                            for t3, time3 in enumerate(time3s):
-                                rho_t3 = rhos_t3[t3]
-                                sign = mu_op[3]
-                                Rsignal[ph][t3,t2,t1] += sign*np.trace(np.dot(mu_m,rho_t3))
-                                if is_damped and t1 >= t_damp and t3 >= t_damp:
-                            
-                                    Rsignal[ph][t3,t2,t1] *= switch_to_zero(t3,t_damp+int(0.5*len(times)),len(times)) 
-                                    Rsignal[ph][t3,t2,t1] *= switch_to_zero(t1,t_damp+int(0.5*len(times)),len(times))
-                                #    Rsignal[ph][t3,t2,t1] = switch_to_zero(t3,int(0.01*len(times)),len(times)) 
-                                #    Rsignal[ph][t3,t2,t1] = switch_to_zero(t1,int(0.01*len(times)),len(times))
+                    for t2, time2 in enumerate(time2s):
+                        rho_t2 = rhos_t2[t2*dt2_over_dt]
+                        rho_t2_0 = self.act(mu_op[2],rho_t2)
+                        time3s, rhos_t3 = self.dynamics.propagate_full(
+                                            rho_t2_0, time1+time2, time1+time2+time_final, dt)
+                        try:
+                            rhos_t3 = self.dynamics.reduce_to_rdm(rhos_t3)
+                        except AttributeError:
+                            pass
 
-            return Rsignal
+                        for t3, time3 in enumerate(time3s):
+                            rho_t3 = rhos_t3[t3]
+                            sign = mu_op[3]
+                            Rsignal[ph][t3,t2,t1] += sign*np.trace(np.dot(mu_m,rho_t3))
+                            if is_damped and t1 >= t_damp and t3 >= t_damp:
+                        
+                                Rsignal[ph][t3,t2,t1] *= switch_to_zero(t3,t_damp,len(times)) 
+                                Rsignal[ph][t3,t2,t1] *= switch_to_zero(t1,t_damp,len(times))
+        return Rsignal
 
 
     def act(self, opside, rho):
@@ -517,20 +516,35 @@ def convert_to_xx(ham_sys_x, ham_sysbath_x, dipole_x):
         ham_sysbath.append( 
             scipy.linalg.block_diag([[0]], ham_sysbath_x[b], ham_sysbath_xx_b) )
 
+    if len(np.array(dipole_x).shape) == 1:
+        dipole_x_vec = np.array(dipole_x)
+        dipole_x = np.zeros((1+nx,1+nx))
+        for i in range(nx):
+            dipole_x[0,i+1] = dipole_x[i+1,0] = dipole_x_vec[i]
+
     dipole_xx = np.zeros((nx,nxx))
     for i in range(nx):
         mn = 0
         for m in range(nx):
             for n in range(m):
-                dipole_xx[i,mn] = dipole_x[m]*(i==n) + dipole_x[n]*(i==m)
+                dipole_xx[i,mn] = dipole_x[0,m+1]*(i==n) + dipole_x[0,n+1]*(i==m)
                 mn += 1
 
     dipole = np.zeros((1+nx+nxx,1+nx+nxx))
     for i in range(nx):
-        dipole[0,i+1] = dipole[i+1,0] = dipole_x[i]
+        dipole[0,i+1] = dipole[i+1,0] = dipole_x[0,i+1]
         mn = 0
         for m in range(nx):
             for n in range(m):
                 dipole[i+1,mn+1+nx] = dipole[mn+1+nx,i+1] = dipole_xx[i,mn]
+                mn += 1
+
+    for i in range(nx):
+        dipole[i+1,i+1] = dipole_x[i+1,i+1]
+
+    #mn = 0 
+    #for m in range(nx):
+    #    for n in range(m):
+    #        dipole[mn+1+nx,mn+1+nx] = dipole_x[1+m,1+m] + dipole_x[1+n,1+n]
 
     return ham_sys, ham_sysbath, dipole
