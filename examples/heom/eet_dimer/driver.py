@@ -39,10 +39,10 @@ def main():
             for K in [0]:
                 for L in [5,9,13]:
                     my_heom = heom.HEOM(my_ham, L=L, K=K)
-                    times, rhos_site, rhos_eig = my_heom.propagate(rho_0, 0.0, 1000.0, 1.0)
+                    times, rhos_site = my_heom.propagate(rho_0, 0.0, 1000.0, 1.0)
 
                     with open('pop_site_tau-%0.1f_lam-%0.2f_L-%d_K-%d.dat'%(tau_c,lamda,L,K), 'w') as f:
-                        for (time, rho_site, rho_eig) in zip(times, rhos_site, rhos_eig):
+                        for (time, rho_site) in zip(times, rhos_site):
                             f.write('%0.8f %0.8f %0.8f\n'%(time, rho_site[0,0].real, 
                                                                  rho_site[1,1].real))
 
