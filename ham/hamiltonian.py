@@ -223,6 +223,11 @@ class SpecDens(object):
             = (omega_c)^s Gamma(s)
         For s=3 :: \int ... = 2 (omega_c)^3
 
+        J(w) = (pi lambda)/(2 omega_c^3) w^3 exp(-w/omega_c)
+             = (eta)/(3! omega_c^2) w^3 exp(-w/omega_c)
+        --> lambda = (eta omega_c)/(3 * pi)
+            eta = 3 * pi * lambda / omega_c
+
         """
         w = abs(omega)
         Jw = (np.pi*self.lamda/(2*self.omega_c**3))*w**3*np.exp(-w/self.omega_c)

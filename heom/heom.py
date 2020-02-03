@@ -74,6 +74,8 @@ class HEOM(Unitary):
 
         if self.ham.sd[0].sd_type == 'ohmic-exp':
             self.nlorentz = 3 # number of Lorenztians to fit
+        elif self.ham.sd[0].sd_type == 'cubic-exp':
+            self.nlorentz = 4 # number of Lorenztians to fit
         else:
             self.nlorentz = 0
 
@@ -107,7 +109,7 @@ class HEOM(Unitary):
                         self.c[j,k] = ( 4*lamdaj*omega_cj/beta
                                         *self.gamma[j,k]
                                         /((self.gamma[j,k])**2 - omega_cj**2) )
-        elif self.ham.sd[0].sd_type == 'ohmic-exp':
+        elif self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp':
             self.p = np.zeros((self.ham.nbath, self.nlorentz))
             self.dp = np.zeros((self.ham.nbath, self.nlorentz), dtype=np.complex)
             self.dm = np.zeros((self.ham.nbath, self.nlorentz), dtype=np.complex)
@@ -120,15 +122,30 @@ class HEOM(Unitary):
             for j in range(self.ham.nbath):
                 lamdaj = self.ham.sd[j].lamda
                 omega_cj = self.ham.sd[j].omega_c
-                self.p[j,0] = np.pi*lamdaj*omega_cj**3 *( 12.0677)
-                self.p[j,1] = np.pi*lamdaj*omega_cj**3 *(-19.9762)
-                self.p[j,2] = np.pi*lamdaj*omega_cj**3 *(  0.1834)
-                self.Omega[j,0] = omega_cj * 0.2378
-                self.Omega[j,1] = omega_cj * 0.0888
-                self.Omega[j,2] = omega_cj * 0.0482
-                self.Gamma[j,0] = omega_cj * 2.2593
-                self.Gamma[j,1] = omega_cj * 5.4377
-                self.Gamma[j,2] = omega_cj * 0.8099
+                if self.ham.sd[0].sd_type == 'ohmic-exp':
+                    self.p[j,0] = np.pi*lamdaj*omega_cj**3 *( 12.0677)
+                    self.p[j,1] = np.pi*lamdaj*omega_cj**3 *(-19.9762)
+                    self.p[j,2] = np.pi*lamdaj*omega_cj**3 *(  0.1834)
+                    self.Omega[j,0] = omega_cj * 0.2378
+                    self.Omega[j,1] = omega_cj * 0.0888
+                    self.Omega[j,2] = omega_cj * 0.0482
+                    self.Gamma[j,0] = omega_cj * 2.2593
+                    self.Gamma[j,1] = omega_cj * 5.4377
+                    self.Gamma[j,2] = omega_cj * 0.8099
+                else:
+                    self.p[j,0] = 3*np.pi*lamdaj*omega_cj**3 *( 10.6  )
+                    self.p[j,1] = 3*np.pi*lamdaj*omega_cj**3 *(  7.00 )
+                    self.p[j,2] = 3*np.pi*lamdaj*omega_cj**3 *( -0.300)
+                    self.p[j,3] = 3*np.pi*lamdaj*omega_cj**3 *( -6.47 )
+                    self.Omega[j,0] = omega_cj * 2.48
+                    self.Omega[j,1] = omega_cj * 4.23
+                    self.Omega[j,2] = omega_cj * 0.0581
+                    self.Omega[j,3] = omega_cj * 9.87
+                    self.Gamma[j,0] = omega_cj * 2.20
+                    self.Gamma[j,1] = omega_cj * 2.25
+                    self.Gamma[j,2] = omega_cj * 1.32
+                    self.Gamma[j,3] = omega_cj * 3.49
+        
                 for l in range(self.nlorentz):
                     self.dp[j,l] = ( hbar*self.p[j,l]/(8*self.Omega[j,l]*self.Gamma[j,l])
                                     *(1./np.tanh(beta*hbar*(self.Omega[j,l] - 1j*self.Gamma[j,l])/2.) + 1) )
@@ -183,7 +200,7 @@ class HEOM(Unitary):
             for j in range(self.ham.nbath):
                 if self.ham.sd[j].sd_type == 'ohmic-lorentz':
                     ct_j = np.dot(self.c[j,:], np.exp(-self.gamma[j,:]*time))
-                elif self.ham.sd[j].sd_type == 'ohmic-exp':
+                elif self.ham.sd[j].sd_type == 'ohmic-exp' or self.ham.sd[j].sd_type == 'cubic-exp':
                     ct_j = (np.dot(self.dp[j,:], np.exp(-(self.Gamma[j,:]+1j*self.Omega[j,:])*time))
                            +np.dot(self.dm[j,:], np.exp(-(self.Gamma[j,:]-1j*self.Omega[j,:])*time))
                            +np.dot(self.c[j,:], np.exp(-self.gamma[j,:]*time)))
@@ -220,7 +237,7 @@ class HEOM(Unitary):
         self.nmat_hash = dict()
         self.nmats = list()
 
-        if self.ham.sd[0].sd_type == 'ohmic-exp':
+        if self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp':
             nmodes = self.Nk + 2*self.nlorentz
         else:
             nmodes = self.Nk
@@ -406,7 +423,7 @@ class HEOM(Unitary):
                                    *(self.c[j,k]*np.dot(Fj,rho_njkminus)
                                     -self.c[j,k].conjugate()*np.dot(rho_njkminus,Fj)) )
                 drho.append(drho_n)
-        elif self.ham.sd[0].sd_type == 'ohmic-exp':
+        elif self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp':
             # Chen Eq. (15)
             beta = 1./const.kT
             cjk_over_gammajk_re = np.einsum('jk,jk->j', self.c, 1./self.gamma).real
