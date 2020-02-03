@@ -1,9 +1,6 @@
-import sys
 import numpy as np
 
-sys.path.append('/home/tberk/utils/python_modules/QuantumDynamics/')
-from quantumdynamics.hamiltonian import Hamiltonian
-from quantumdynamics.heom import HEOM
+from pyrho import ham, heom
 
 def main():
     nsite = 7
@@ -37,15 +34,14 @@ def main():
             kT = kB*T
             spec_densities = [['ohmic-lorentz', lamda, omega_c]]*nbath
 
-            my_ham = Hamiltonian(ham_sys, ham_sysbath, spec_densities, kT, hbar=hbar)
-            my_heom = HEOM(my_ham, L=L, K=K)
+            my_ham = ham.Hamiltonian(ham_sys, ham_sysbath, spec_densities, kT, hbar=hbar)
+            my_heom = heom.HEOM(my_ham, L=L, K=K)
 
             for init in [6]:
                 # Initial reduced density matrix of the system
                 rho_0 = np.zeros((nsite, nsite))
                 rho_0[init-1,init-1] = 1.0
-                times, rhos_site, rhos_eig = my_heom.propagate(rho_0, 
-                                                0.0, 1000.0, 1.0)
+                times, rhos_site = my_heom.propagate(rho_0, 0.0, 1000.0, 1.0)
 
                 with open('pop_site_T-%.0f_init-%d_tau-%.0f_L-%d_K-%d.dat'
                            %(T,init,tau,L,K), 'w') as f:
