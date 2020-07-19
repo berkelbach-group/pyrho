@@ -32,14 +32,14 @@ class HamiltonianSystem(object):
         self.nsite = ham_sys.shape[0]
         self.evals, self.Umat = utils.diagonalize(self.sys)
        
-        self.omega_diff = np.zeros((self.nsite,self.nsite))
+        self.omega_diff = np.zeros((self.nsite,self.nsite)) # used for transformation to interaction picture
         for i in range(self.nsite):
             for j in range(self.nsite):
                 self.omega_diff[i,j] = (self.evals[i] - self.evals[j])/const.hbar
 
         if is_verbose:
-            print "\n--- System eigenvalues"
-            print self.evals
+            print("\n--- System eigenvalues")
+            print(self.evals)
 
     def site2eig(self, rho):
         """Transform rho (or many rhos) from the site basis to the eigen basis."""
@@ -124,7 +124,7 @@ class Hamiltonian(HamiltonianSystem):
                     #rho_wnk = nmode/(np.pi*lamda_n*omega_nk)*self.sd[n].J(omega_nk)
                     rho_wnk = nmode/(np.pi) *2 / (1 + (omega_nk/omega_c_n)**2) / omega_c_n
                 else:
-                    print "Spectral density type", self.sd[n].sd_type, "not supported."
+                    print("Spectral density type", self.sd[n].sd_type, "not supported.")
                     raise NotImplementedError
                 c_nk = np.sqrt(2/np.pi * omega_nk * self.sd[n].J(omega_nk) / rho_wnk)
                 modes[n].append(ClassicalHO(omega_nk, None, None, c_nk))
@@ -132,12 +132,12 @@ class Hamiltonian(HamiltonianSystem):
 
     def sample_classical_modes(self, modes):
         if self.sample_wigner:
-            #print 'Using Wigner Distribution'
+            #print(Using Wigner Distribution)
             for n in range(self.nbath):
                 for mode in modes[n]:
                     mode.sample_wigner(const.kT)
         else:
-            #print 'Using Boltzmann Distribution'
+            #print(Using Boltzmann Distribution)
             for n in range(self.nbath):
                 for mode in modes[n]:
                     mode.sample_boltzmann(const.kT)
@@ -194,8 +194,16 @@ class SpecDens(object):
             self.J = self.oscillators
             self.lamdas = spec_dens_list[1]
             self.omegas = spec_dens_list[2]
+        elif sd_type == 'custom':
+            # spec_dens_list should be of the form:
+            # ['custom', [ [p_1, p_2, ...], [w_1, w_2, ...], [gamma_1, ...]]
+            self.J = self.MToscillators
+            self.pks = spec_dens_list[1][0]
+            self.omegaks = spec_dens_list[1][1]
+            self.gammaks = spec_dens_list[1][2]
+            self.omega_inf = 75.0  #!!! need to be modified
         else:
-            print "Spectral density type", sd_type, "not found!"
+            print("Spectral density type", sd_type, "not found!")
             raise SystemExit
 
         self.sd_type = sd_type
@@ -258,6 +266,18 @@ class SpecDens(object):
     #        return Jw
     #    else:
     #        return -Jw
+
+    def MToscillators(self, omega):
+        w = abs(omega)
+        Jw = 0.0
+        for pk, omegak, gammak in zip(self.pks, self.omegaks, self.gammaks):
+            Jw += ( pk*w
+                    *1.0/( (w+omegak)**2 + (gammak)**2 )
+                    *1.0/( (w-omegak)**2 + (gammak)**2 ) )
+        if omega > 0:
+            return Jw
+        else:
+            return -Jw
 
     def bath_corr(self, t):
         """Evaluate the real-time bath autocorrelation function at time t."""

@@ -45,6 +45,10 @@ Contents
     Module for spectroscopies, based on any underlying Dynamics class
         with a Dynamics.propagate() method
 
+* tcf/
+
+    Module for equilibrium time correlation function, only works for HEOM
+
 * examples/
     
     Example driver scripts for setting up a Hamiltonian and calculating

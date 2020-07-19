@@ -4,7 +4,7 @@
 
 import numpy as np
 import itertools
-import iterhelper
+from pyrho.heom import iterhelper
 from pyrho.integrate import Integrator
 from pyrho.lib import const, utils
 
@@ -67,15 +67,17 @@ class HEOM(Unitary):
         self.Nk = K+1
         self.L_truncation = L_truncation
         self.K_truncation = K_truncation
-        print "--- Hierarchy depth, L =", self.Lmax
-        print "--- Using hierarchy closure:", self.L_truncation
-        print "--- Maximum Matsubara frequency, K =", self.Kmax
-        print "--- Using Matsubara truncation scheme:", self.K_truncation
+        print("--- Hierarchy depth, L =", self.Lmax)
+        print("--- Using hierarchy closure:", self.L_truncation)
+        print("--- Maximum Matsubara frequency, K =", self.Kmax)
+        print("--- Using Matsubara truncation scheme:", self.K_truncation)
 
         if self.ham.sd[0].sd_type == 'ohmic-exp':
             self.nlorentz = 3 # number of Lorenztians to fit
         elif self.ham.sd[0].sd_type == 'cubic-exp':
             self.nlorentz = 4 # number of Lorenztians to fit
+        elif self.ham.sd[0].sd_type == 'custom':
+            self.nlorentz = len(self.ham.sd[0].pks) # number of Lorenztians as input
         else:
             self.nlorentz = 0
 
@@ -86,7 +88,7 @@ class HEOM(Unitary):
         """Precompute the Matsubara expansion parameters c_k and gamma_k.
         """
 
-        print "--- Initializing Matsubara expansion ...",
+        print("--- Initializing Matsubara expansion ...", end=" ")
 
         beta = 1./const.kT
         hbar = const.hbar
@@ -109,7 +111,7 @@ class HEOM(Unitary):
                         self.c[j,k] = ( 4*lamdaj*omega_cj/beta
                                         *self.gamma[j,k]
                                         /((self.gamma[j,k])**2 - omega_cj**2) )
-        elif self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp':
+        elif self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp' or self.ham.sd[0].sd_type == 'custom':
             self.p = np.zeros((self.ham.nbath, self.nlorentz))
             self.dp = np.zeros((self.ham.nbath, self.nlorentz), dtype=np.complex)
             self.dm = np.zeros((self.ham.nbath, self.nlorentz), dtype=np.complex)
@@ -120,9 +122,12 @@ class HEOM(Unitary):
             self._coth_b_OminusG = np.zeros((self.ham.nbath, self.nlorentz), dtype=np.complex)
             self._coth_b_OplusG = np.zeros((self.ham.nbath, self.nlorentz), dtype=np.complex)
             for j in range(self.ham.nbath):
-                lamdaj = self.ham.sd[j].lamda
-                omega_cj = self.ham.sd[j].omega_c
+                
                 if self.ham.sd[0].sd_type == 'ohmic-exp':
+                    lamdaj = self.ham.sd[j].lamda
+                    omega_cj = self.ham.sd[j].omega_c
+                    # parameters for the three lorentzians decompposition of the Ohmic-exp SD
+                    # Liu Table I.
                     self.p[j,0] = np.pi*lamdaj*omega_cj**3 *( 12.0677)
                     self.p[j,1] = np.pi*lamdaj*omega_cj**3 *(-19.9762)
                     self.p[j,2] = np.pi*lamdaj*omega_cj**3 *(  0.1834)
@@ -132,7 +137,11 @@ class HEOM(Unitary):
                     self.Gamma[j,0] = omega_cj * 2.2593
                     self.Gamma[j,1] = omega_cj * 5.4377
                     self.Gamma[j,2] = omega_cj * 0.8099
-                else:
+                elif self.ham.sd[0].sd_type == 'cubic-exp':
+                    lamdaj = self.ham.sd[j].lamda
+                    omega_cj = self.ham.sd[j].omega_c
+                    # parameters for the three lorentzians decompposition of the cubic-exp SD
+                    # Liu Table II.
                     self.p[j,0] = 3*np.pi*lamdaj*omega_cj**3 *( 10.6  )
                     self.p[j,1] = 3*np.pi*lamdaj*omega_cj**3 *(  7.00 )
                     self.p[j,2] = 3*np.pi*lamdaj*omega_cj**3 *( -0.300)
@@ -145,8 +154,18 @@ class HEOM(Unitary):
                     self.Gamma[j,1] = omega_cj * 2.25
                     self.Gamma[j,2] = omega_cj * 1.32
                     self.Gamma[j,3] = omega_cj * 3.49
-        
+                else:
+                    ## self.ham.sd[0].sd_type == 'custom'
+                    for k in range(self.nlorentz):
+                        self.p[j,k] = self.ham.sd[j].pks[k]
+                        self.Omega[j,k] = self.ham.sd[j].omegaks[k]
+                        self.Gamma[j,k] = self.ham.sd[j].gammaks[k]
+                print(self.p)
+                print(self.Omega)
+                print(self.Gamma)
+
                 for l in range(self.nlorentz):
+                    # Liu Eq. (A2)
                     self.dp[j,l] = ( hbar*self.p[j,l]/(8*self.Omega[j,l]*self.Gamma[j,l])
                                     *(1./np.tanh(beta*hbar*(self.Omega[j,l] - 1j*self.Gamma[j,l])/2.) + 1) )
                     self.dm[j,l] = ( hbar*self.p[j,l]/(8*self.Omega[j,l]*self.Gamma[j,l])
@@ -164,26 +183,29 @@ class HEOM(Unitary):
                                           + 4*self.gamma[j,k]**2*self.Omega[j,l]**2) )
 
             # Write the approximate spectral density to a file.
-            for j in range(self.ham.nbath):
-                Jw_file = open('Jw%d_approx.dat'%(j),'w')
-                lamda = 0.0
-                omega_cj = self.ham.sd[j].omega_c
-                dw = 10*omega_cj/1000.
-                omegas = np.arange(-10*omega_cj,
-                                    10*omega_cj, dw) + 1e-14
-                for omega in omegas:
-                    Jw = 0.0
-                    for l in range(self.nlorentz):
-                        Jw += ( self.p[j,l]*omega/
-                               ( ((omega+self.Omega[j,l])**2+self.Gamma[j,l]**2)
-                                *((omega-self.Omega[j,l])**2+self.Gamma[j,l]**2) ))
-                    if omega > 0:
-                        lamda += dw*(1./np.pi)*Jw/omega
-                    Jw_file.write('%0.6f %0.6f %0.6f\n'
-                                  %(const.hbar*omega, Jw, lamda))
-                Jw_file.close()
+            if self.ham.sd[0].sd_type == 'custom':
+                print('hi')
+            else:
+                for j in range(self.ham.nbath):
+                    Jw_file = open('Jw%d_approx.dat'%(j),'w')
+                    lamda = 0.0
+                    omega_cj = self.ham.sd[j].omega_c
+                    dw = 10*omega_cj/1000.
+                    omegas = np.arange(-10*omega_cj,
+                                        10*omega_cj, dw) + 1e-14
+                    for omega in omegas:
+                        Jw = 0.0
+                        for l in range(self.nlorentz):
+                            Jw += ( self.p[j,l]*omega/
+                                   ( ((omega+self.Omega[j,l])**2+self.Gamma[j,l]**2)
+                                    *((omega-self.Omega[j,l])**2+self.Gamma[j,l]**2) ))
+                        if omega > 0:
+                            lamda += dw*(1./np.pi)*Jw/omega
+                        Jw_file.write('%0.6f %0.6f %0.6f\n'
+                                      %(const.hbar*omega, Jw, lamda))
+                    Jw_file.close()
 
-        print "done."
+        print("done.")
 
     def write_bath_corr_fn(self, times):
         """Write the bath autocorrelation function to a file.
@@ -232,12 +254,12 @@ class HEOM(Unitary):
 
         """
 
-        print "--- Initializing auxiliary density matrix hierarchy ...",
+        print("--- Initializing auxiliary density matrix hierarchy ...", end=" ")
 
         self.nmat_hash = dict()
         self.nmats = list()
 
-        if self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp':
+        if self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp' or self.ham.sd[0].sd_type == 'custom':
             nmodes = self.Nk + 2*self.nlorentz
         else:
             nmodes = self.Nk
@@ -288,7 +310,7 @@ class HEOM(Unitary):
                     else:
                         self.nmat_minus_hash[n,j,k] = -1
                     
-        print "done."
+        print("done.")
 
     def initialize_from_rdm(self, rho_site):
         """Initialize the RDM to its initial value and the ADMs to zero.
@@ -423,7 +445,7 @@ class HEOM(Unitary):
                                    *(self.c[j,k]*np.dot(Fj,rho_njkminus)
                                     -self.c[j,k].conjugate()*np.dot(rho_njkminus,Fj)) )
                 drho.append(drho_n)
-        elif self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp':
+        elif self.ham.sd[0].sd_type == 'ohmic-exp' or self.ham.sd[0].sd_type == 'cubic-exp' or self.ham.sd[0].sd_type == 'custom':
             # Chen Eq. (15)
             beta = 1./const.kT
             cjk_over_gammajk_re = np.einsum('jk,jk->j', self.c, 1./self.gamma).real
@@ -439,8 +461,8 @@ class HEOM(Unitary):
                 drho_nab -= np.sum(nmat*self.gamma)*rho_nab
                 for j in range(self.ham.nbath):
                     Fj = self.ham.sysbath[j]    # this is like |j><j|
-                    lamdaj = self.ham.sd[j].lamda
-                    omega_cj = self.ham.sd[j].omega_c
+                    # lamdaj = self.ham.sd[j].lamda
+                    # omega_cj = self.ham.sd[j].omega_c
                     #if self.truncation_type == 'Ishizaki-Tanimura':
                     #    drho_nab -= (1./hbar**2)*(
                     #            (2*lamdaj*const.kT/omega_cj - cjk_over_gammajk_re[j])
@@ -505,7 +527,7 @@ class HEOM(Unitary):
         Parameters
         ----------
         rho_0 : np.array
-            The initial RDM.
+            The initial RDM. (in site basis)
         t_init : float
             The initial time.
         t_final : float
