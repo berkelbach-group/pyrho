@@ -36,14 +36,14 @@ class Hybrid(object):
             if self.ham.nsite == 2:
                 omega_R = rabi_two_level(self.ham.sys)
             else:
-                print "Automated splitting frequency for Nsys > 2 not implemented!"
+                print("Automated splitting frequency for Nsys > 2 not implemented!")
                 raise SystemExit
 
             for n in range(self.ham.nbath):
                 self.omega_split.append( omega_R/4. )
 
-                print "\n--- Splitting energy for bath %d = %0.2lf"%(
-                                n, const.hbar*self.omega_split[n] )
+                print("\n--- Splitting energy for bath %d = %0.2lf"%(
+                                n, const.hbar*self.omega_split[n] ))
 
         else:
             assert( len(self.omega_split) == self.ham.nbath )

@@ -30,52 +30,16 @@ class Spectroscopy(object):
                 times = np.zeros(int(t_final/dt))
                 for n in range(len(times)):
                     times[n] = n*dt
-     #           for t, time in enumerate(times):
-     #               gt  = self.dynamics.ham.sd[0].line_func(t*dt)                
-     #               print t*dt, gt.real
                 Cw = np.zeros(len(omegas))
                 expi = np.exp(1j*(np.outer(omegas,times)))
                 for t, time in enumerate(times):
                     weight = dt - 0.5*dt*(t==0 or t==len(times)-1)
                     gt  = self.dynamics.ham.sd[0].line_func(t*dt)
-                    # print 't=',t,'\ngt=',gt
                     Ct = np.exp(-1j*omega_eg*t*dt-gt)
                     if is_damped and t > t_damp:
                         Ct *= switch_to_zero(time,t_damp,t_final)
                     Cw += weight*(expi[:,t]*Ct).real
                 return energies, (mu[1,0]**2)*Cw
-            
-#            if self.dynamics.ham.nsite == 3:
-#                nbath = self.dynamics.ham.nbath
-#                nsite = self.dynamics.ham.nsite
-#                omega_diff = self.dynamics.ham.omega_diff
-#                sys_eig = self.dynamics.ham.site2eig(self.dynamics.ham.sys)
-#                times = np.zeros(int(t_final/dt))
-#                sysbath_eig = []
-#                for n in range(nbath):
-#                    sysbath_eig.append(self.dynamics.ham.site2eig(self.dynamics.ham.sysbath[n]))               
-#                mu_eig = self.dynamics.ham.site2eig(mu) 
-#
-#                for n in range(len(times)):
-#                    times[n] = n*dt
-#     #           for t, time in enumerate(times):
-#     #               gt  = self.dynamics.ham.sd[0].line_func(t*dt)                
-#     #               print t*dt, gt.real
-#                Cw = np.zeros(len(omegas))
-#                expi = np.exp(1j*(np.outer(omegas,times)))
-#                print omega_diff
-#                for t, time in enumerate(times):
-#                    weight = dt - 0.5*dt*(t==0 or t==len(times)-1)
-#                    gt  = self.dynamics.ham.sd[0].line_func(t*dt)
-#                    pops1 = self.dynamics.ham.sd[0].sec_poprate(0.*omega_diff[0,2],t*dt)
-#                    pops2 = self.dynamics.ham.sd[0].sec_poprate(0.*omega_diff[2,0],t*dt)
-#                    Ct = np.exp(-1j*omega_diff[1,2]*t*dt-(sys_eig[2,2]**2)*gt-(sys_eig[0,2]**2)*pops1) + np.exp(-1j*omega_diff[0,1]*t*dt-(sys_eig[0,0]**2)*gt-50.*(sys_eig[2,0]**2)*pops2)
-#
-#                    if is_damped and t > t_damp:
-#                        Ct *= switch_to_zero(time,t_damp,t_final)
-#                    Cw += weight*(expi[:,t]*Ct).real
-#                return energies, (mu[1,0]**2)*Cw
-            
 
             else:
                 omega_diff = self.dynamics.ham.omega_diff
@@ -100,28 +64,14 @@ class Spectroscopy(object):
                 for n in range(len(times)):
                     times[n] = n*dt
                 
-#                for t, time in enumerate(times):
-#                    gt  = self.dynamics.ham.sd[0].sec_poprate(-1.,t*dt)
-#                    print t*dt, gt.real 
-#                print sys_eig
-#                print omega_diff
                 full_rate = np.zeros((nsite,nsite)) 
                 for n in range(nbath):
                     full_rate += (sysbath_eig[n]**2)*markov_rate[n]
 
-#                print full_rate
                 full_rate_sum = np.zeros(nsite)
                 for n in range(nsite):
                     full_rate_sum[n] = (np.sum(full_rate[n,:]))
-#                full_rate_sum = np.array([0.007806,0.,0.05768])
-#               # Coefficient for pure dephasing lineshape function on each site
                 gammas = np.zeros((nsite))
-
-#                print sysbath_eig
-#                print mu_eig
-#                print sys_eig
-#                print np.diag(sys_eig)
-#                print np.diag(sys_eig)[1]
 
                 for m in range(nbath):
                     for n in range(nsite):
@@ -147,19 +97,6 @@ class Spectroscopy(object):
                     absw += (mu_eig[n,gs_index]**2)*Cw
                 return energies, absw 
 
-#                for l in range(nbath-1):
-#                    for m in range(nsite-1):
-#                        for n in range(nsite-1):
-#                            self.dynamics.ham.sysbath_eig[0][2,1]**2)*self.dynamics.ham.sd[0].pop_rate(omega_diff[1,2]) + (self.dynamics.ham.sysbath_eig[1][2,1]**2)*self.dynamics.ham.sd[1].pop_rate(omega_diff[1,2])
-
-#                print self.dynamics.ham.sd[0].pop_rates(self.dynamics.ham.omega_diff) 
-#                print "Analytical lineshape function is only implemented for the monomer case."
-
-#                expi = np.exp(1j*(np.outer(omegas,times)))
-#                weight = dt - 0.5*dt*(t==0 or t==len(times)-1)
-#                Ct = np.exp(-1j*omega_eg*t-self.dynamics.ham.sd[0].line_func(t*dt))
-#                Cw += weight*(expi[:,t]*Ct).real
-                
         else:
             nbath = self.dynamics.ham.nbath
             nsite = self.dynamics.ham.nsite
@@ -193,9 +130,9 @@ class Spectroscopy(object):
         utils.print_banner("CALCULATING TWO-DIMENSIONAL SPECTRUM")
         
         if lioupath == 'total':
-            print '--- Including all Liouville pathways.'
+            print('--- Including all Liouville pathways.')
         else:
-            print '--- Including only selected Liouville pathways.'
+            print('--- Including only selected Liouville pathways.')
 
         energy1s = np.arange(e1_min, e1_max, de1)
         energy3s = np.arange(e3_min, e3_max, de3)
@@ -208,9 +145,9 @@ class Spectroscopy(object):
 
         spectrum = np.zeros( (len(omega3s),len(time2s),len(omega1s)) )
 
-        print "--- Spectrum will require O(%d) propagations."%(len(times)*len(time2s))
+        print("--- Spectrum will require O(%d) propagations.")%(len(times)*len(time2s))
 
-        print "--- Calculating third-order response function ...",
+        print("--- Calculating third-order response function ..."),
 
 
         try:
@@ -223,12 +160,9 @@ class Spectroscopy(object):
                 Rsignal[1] += R_nr/self.dynamics.ntraj
         except AttributeError:
             Rsignal = self.calculate_R3(rho_g, time2_min, time2_max, dt2, time_final, dt, is_damped=is_damped, lioupath=lioupath, lineshape_func=lineshape_func)
-     # print time correlation R3
-    #   for n in range(1,len(times)-1):
-    #       print Rsignal[0][0,0,n].real
 
-        print "done."
-        print "--- Performing 2D Fourier transform ...",
+        print("done.")
+        print("--- Performing 2D Fourier transform ..."),
 
         expi1 = np.exp(1j*np.outer(omega1s,times))
         expi1[:,0] *= 0.5*dt 
@@ -239,6 +173,7 @@ class Spectroscopy(object):
         spectrum =  np.einsum('ws,xu,uts->xtw',expi1,expi3,Rsignal[1]).real
         spectrum += np.einsum('ws,xu,uts->xtw',expi1.conj(),expi3,Rsignal[0]).real
 
+## The above replaces this:
 #        for w3, omega3 in enumerate(omega3s):
 #            for w1, omega1 in enumerate(omega1s):
 #                for t1, time1 in enumerate(times):
@@ -255,7 +190,7 @@ class Spectroscopy(object):
 #                            #np.exp(1j*(omega1*time1+omega3*time3))*Rsignal[1][t3,t2,t1]
 #                            #+np.exp(1j*(-omega1*time1+omega3*time3))*Rsignal[0][t3,t2,t1] ).real
 
-        print "done."
+        print("done.")
 
         spectra = []
         for t2 in range(len(time2s)):
@@ -420,7 +355,6 @@ class Spectroscopy(object):
             Rsignal.append(np.zeros( (len(times),len(time2s),len(times)), dtype=np.complex))
 
             t_damp = 0.
-           # self.dynamics.precompute_redfield_tensor(0.0,3*time_final+2*time2_max+dt+1e-3,dt)
             for ph in [0,1]:
                 for mu_op in mu_ops[ph]:
                     rho_0 = self.act(mu_op[0],rho_g_bath)
@@ -451,8 +385,6 @@ class Spectroscopy(object):
                             
                                     Rsignal[ph][t3,t2,t1] *= switch_to_zero(t3,t_damp+int(0.5*len(times)),len(times)) 
                                     Rsignal[ph][t3,t2,t1] *= switch_to_zero(t1,t_damp+int(0.5*len(times)),len(times))
-                                #    Rsignal[ph][t3,t2,t1] = switch_to_zero(t3,int(0.01*len(times)),len(times)) 
-                                #    Rsignal[ph][t3,t2,t1] = switch_to_zero(t1,int(0.01*len(times)),len(times))
 
             return Rsignal
 

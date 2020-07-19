@@ -63,7 +63,7 @@ class Unitary(object):
             rhos_site.append(rho_t)
 
         if is_verbose:
-            print "\n--- Finished performing RDM dynamics"
+            print("\n--- Finished performing RDM dynamics")
         
         return times, rhos_site
 

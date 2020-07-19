@@ -90,7 +90,7 @@ def anticommutator(A,B):
 def print_banner(text):
     Nchar = len(text)
     Nstar = max(56,Nchar+7) 
-    print ""
-    print "*"*Nstar
-    print "*  ", text, " "*(Nstar-Nchar-7), "*"
-    print "*"*Nstar
+    print("")
+    print("*"*Nstar)
+    print("*  ", text, " "*(Nstar-Nchar-7), "*")
+    print("*"*Nstar)

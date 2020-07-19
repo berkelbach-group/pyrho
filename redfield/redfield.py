@@ -42,7 +42,7 @@ class Redfield(Unitary):
         rho = rho.copy()
         if self.is_secular:
             if self.is_verbose:
-                print "\n--- Using the secular approximation"
+                print("\n--- Using the secular approximation")
 
         ident = np.identity(self.ham.nsite)
         self.Omega = -1j*np.einsum('ij,ik,jl->ijkl', 
@@ -148,13 +148,13 @@ class Redfield(Unitary):
 
         if ns == 2 and self.method == "Redfield":
             if self.is_verbose:
-                print "\n--- The Redfield tensor"
-                print self.redfield_tensor
+                print("\n--- The Redfield tensor")
+                print(self.redfield_tensor)
 
-                print "\n--- Checking detailed balance"
+                print("\n--- Checking detailed balance")
                 for i in range(ns):
                     for j in range(i+1,ns):
-                        print "R[%d,%d,%d,%d]/R[%d,%d,%d,%d] = %0.10lf =? %0.10lf"%(
+                        print("R[%d,%d,%d,%d]/R[%d,%d,%d,%d] = %0.10lf =? %0.10lf")%(
                                 i,i,j,j,j,j,i,i,
                                 np.real( self.redfield_tensor[i,i,j,j]
                                         / self.redfield_tensor[j,j,i,i] ),
@@ -184,7 +184,7 @@ class Redfield(Unitary):
 
         """
         if self.is_verbose:
-            print "\n--- Precomputing the Redfield tensor"
+            print("\n--- Precomputing the Redfield tensor")
         n_timesteps = int( (t_final-t_init)/dt + 1 )
         self.redfield_tensor_n = []
         redfield_tensor_integral_n = []
@@ -210,13 +210,13 @@ class Redfield(Unitary):
                                             self.redfield_tensor_n[n-1] ) )
             if n > 0 and cost[n] < self.markov_tol*np.std(cost):
                 if self.is_verbose:
-                    print "\n--- Tensor has stopped changing at t =", time
+                    print("\n--- Tensor has stopped changing at t ="), time
                 self.n_markov = n
                 break
 
             if n > 0 and time >= self.markov_time:
                 if self.is_verbose:
-                    print "\n--- Tensor calculation stopped at t =", time
+                    print("\n--- Tensor calculation stopped at t ="), time
                 self.n_markov = n
                 break
 
@@ -225,7 +225,7 @@ class Redfield(Unitary):
             self.redfield_tensor_n = redfield_tensor_integral_n
 
         if self.is_verbose:
-            print "\n--- Done precomputing the Redfield tensor"
+            print("\n--- Done precomputing the Redfield tensor")
 
         cost_file = open('cost_%s.dat'%(self.method),'w')
         rate_file = open('rate_%s.dat'%(self.method),'w')
@@ -244,7 +244,7 @@ class Redfield(Unitary):
 
     def precompute_redfield_tensor_finegrid(self, t_init, t_final, dt, integrator):
         if self.is_verbose:
-            print "\n--- Precomputing the Redfield tensor on a fine RK4 grid"
+            print("\n--- Precomputing the Redfield tensor on a fine RK4 grid")
         int_order = integrator.order
         c = integrator.c
         n_timesteps = int( (t_final-t_init)/dt + 1 )
@@ -262,14 +262,14 @@ class Redfield(Unitary):
                                             self.redfield_tensor_ni[n-1][i] ) )
             if n > 0 and cost[n] < self.markov_tol*np.std(cost):
                 if self.is_verbose:
-                    print "\n--- Tensor has stopped changing at t =", t
+                    print("\n--- Tensor has stopped changing at t ="), t
                 self.n_markov = n
                 rate_file.close()
                 break
 
             if n > 0 and t >= self.markov_time:
                 if self.is_verbose:
-                    print "\n--- Tensor calculation stopped at t =", t
+                    print("\n--- Tensor calculation stopped at t ="), t
                 self.n_markov = n
                 rate_file.close()
                 break
@@ -283,7 +283,7 @@ class Redfield(Unitary):
         self.n_markov = n
         rate_file.close()
         if self.is_verbose:
-            print "\n--- Done precomputing the Redfield tensor"
+            print("\n--- Done precomputing the Redfield tensor")
 
     def propagate_full(self, rho_0, t_init, t_final, dt,
                   markov_tol = 1e-3, markov_time = np.inf,
@@ -321,7 +321,7 @@ class Redfield(Unitary):
             integrator.integrate()
 
         if is_verbose:
-            print "\n--- Finished performing RDM dynamics"
+            print("\n--- Finished performing RDM dynamics")
         
         return times, rhos_site
 

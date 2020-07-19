@@ -79,7 +79,7 @@ class FrozenModes(Unitary):
                 if self.ham.nsite == 2:
                     omega_R = 2*np.sqrt( (ham[0,0]-ham[1,1])**2/4.0 + ham[0,1]**2 )/const.hbar
                 else:
-                    print "Automated splitting frequency for Nsys > 2 not implemented!"
+                    print("Automated splitting frequency for Nsys > 2 not implemented!")
                     raise SystemExit
 
                 for n in range(self.ham.nbath):
@@ -89,8 +89,8 @@ class FrozenModes(Unitary):
                 assert( len(omega_split) == self.ham.nbath )
 
             for n in range(self.ham.nbath):
-                print "\n--- Splitting energy for bath %d = %0.2lf"%(
-                            n, const.hbar*omega_split[n] )
+                print("\n--- Splitting energy for bath %d = %0.2lf"%(
+                            n, const.hbar*omega_split[n] ))
 
             for n in range(self.ham.nbath):
                 Jslow, Jfast = partition_specdens(self.ham.sd[n].J, omega_split[n], use_PD)
