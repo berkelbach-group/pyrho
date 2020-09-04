@@ -1,5 +1,6 @@
 pyrho: a python package for reduced density matrix techniques
 ==============================================================
+[![DOI](https://zenodo.org/badge/50130882.svg)](https://zenodo.org/badge/latestdoi/50130882)
 
 Authors
 -------
@@ -47,26 +48,11 @@ Contents
 
 * tcf/
 
-    Module for equilibrium time correlation function, only works for HEOM
+    Module for equilibrium time correlation functions, currently only 
+        works for HEOM (in v1.0)
 
 * examples/
     
     Example driver scripts for setting up a Hamiltonian and calculating
         reduced system dynamics
-
-To-do
------
-- [ ] Spectroscopy
-  - [x] Linear 
-  - [ ] Nonlinear
-- [ ] NIBA and related polaron-based QMEs
-- [ ] Exact Harmonic mode(s) in the system Hamiltonian
-  - [ ] Reaction-coordinate mapping
-- [ ] HEOM
-  - [x] Ohmic-Lorentz (Debye)
-  - [ ] Pade decomposition
-  - [ ] Single oscillator
-- [x] Ehrenfest
-  - [ ] Optimization
-  - [ ] Persistent bath variables in propagate()
 
